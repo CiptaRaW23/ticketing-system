@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel Ticketing</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    :root {
+      --primary: #2c3e50;
+      --success: #27ae60;
+      --warning: #f39c12;
+      --danger: #e74c3c;
+      --light: #ecf0f1;
+      --gray: #95a5a6;
+    }
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; background: var(--light); }
+    header { background: var(--primary); color: white; padding: 15px 20px; display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.2); position: fixed; top: 0; left: 0; right: 0; z-index: 1000; }
+    .hamburger { font-size: 28px; cursor: pointer; display: none; }
+    .logo { font-size: 24px; font-weight: bold; display: flex; align-items: center; gap: 10px; flex: 1; }
+    .sidebar { position: fixed; left: 0; top: 70px; width: 300px; height: calc(100vh - 70px); background: var(--primary); color: white; transition: left 0.3s; z-index: 999; padding: 20px; box-sizing: border-box; overflow-y: auto; }
+    .main-content { margin-top: 70px; padding: 20px; margin-left: 300px; transition: margin-left 0.3s; }
+    @media (max-width: 992px) {
+      .hamburger { display: block; }
+      .sidebar { left: -300px; }
+      .sidebar.open { left: 0; }
+      .main-content { margin-left: 0; }
+      .main-content.shift { margin-left: 300px; }
+    }
+    .menu-item { padding: 15px; cursor: pointer; border-radius: 8px; margin-bottom: 10px; display: flex; align-items: center; gap: 15px; font-size: 18px; }
+    .menu-item:hover, .menu-item.active { background: rgba(255,255,255,0.2); }
+    .menu-item i { font-size: 22px; }
+    .page { display: none; }
+    .page.active { display: block; }
+    .stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 20px; margin-bottom: 30px; }
+    .stat-card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); text-align: center; }
+    .stat-number { font-size: 36px; font-weight: bold; color: var(--primary); }
+    .stat-label { font-size: 16px; color: #7f8c8d; margin-top: 10px; }
+    #tickets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 20px; }
+    .ticket-card { background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1); cursor: pointer; transition: transform 0.2s; }
+    .ticket-card:hover { transform: translateY(-5px); }
+    .ticket-header { padding: 15px; color: white; font-weight: bold; text-align: center; }
+    .status-open { background: var(--danger); }
+    .status-in_progress { background: var(--warning); }
+    .status-resolved { background: var(--success); }
+    .ticket-body { padding: 20px; }
+    .actions { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+    select, button { padding: 10px; border-radius: 6px; border: none; cursor: pointer; }
+    select { background: #3498db; color: white; }
+    button { background: var(--gray); color: white; }
+    /* Modal Popup */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 2000; }
+    .modal-content { background: white; width: 90%; max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); position: relative; }
+    .modal-header { background: var(--primary); color: white; padding: 20px; border-radius: 12px 12px 0 0; display: flex; justify-content: space-between; align-items: center; }
+    .modal-close { font-size: 28px; cursor: pointer; }
+    .modal-body { padding: 30px; }
+    #chat { height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin: 20px 0; background: #f8f9fa; }
+    .message { margin: 15px 0; padding: 12px 16px; border-radius: 18px; max-width: 80%; word-wrap: break-word; }
+    .message.customer { background: #3498db; color: white; }
+    .message.admin { background: #2ecc71; color: white; margin-left: auto; }
+    .message.bot { background: #f39c12; color: white; font-style: italic; }
+    .message small { display: block; margin-top: 8px; opacity: 0.8; font-size: 0.8em; }
+    #input-area { display: flex; gap: 10px; margin-top: 20px; }
+    #message-input { flex: 1; padding: 15px; border: 1px solid #ddd; border-radius: 25px; }
+    #send-btn { padding: 15px 30px; background: #3498db; color: white; border: none; border-radius: 25px; cursor: pointer; }
+    .notification { position: fixed; top: 90px; right: 20px; background: var(--danger); color: white; padding: 15px 25px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; animation: slideIn 0.5s; display: none; }
+    @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="hamburger" onclick="toggleSidebar()">
+      <i class="fas fa-bars"></i>
+    </div>
+    <div class="logo">
+      <i class="fas fa-headset"></i> Admin Ticketing Support
+    </div>
+  </header>
+
+  <div class="sidebar" id="sidebar">
+    <div class="menu-item active" onclick="showPage('monitoring')">
+      <i class="fas fa-chart-bar"></i> Monitoring
+    </div>
+    <div class="menu-item" onclick="showPage('tickets')">
+      <i class="fas fa-ticket-alt"></i> List Ticket
+    </div>
+  </div>
+
+  <div class="main-content" id="main-content">
+    <div id="monitoring" class="page active">
+      <div class="container">
+        <h2><i class="fas fa-chart-bar"></i> Monitoring Dashboard</h2>
+        <div class="stats" id="stats"></div>
+      </div>
+    </div>
+
+    <div id="tickets" class="page">
+      <div class="container">
+        <h2><i class="fas fa-ticket-alt"></i> Daftar Ticket</h2>
+        <div id="tickets-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Popup Detail Ticket -->
+  <div class="modal-overlay" id="modal-overlay" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h2>Ticket #<span id="ticket-id"></span>: <span id="ticket-title"></span></h2>
+        <span class="modal-close" onclick="closeModal()">&times;</span>
+      </div>
+      <div class="modal-body">
+        <p><strong>Pelanggan:</strong> <span id="customer-name"></span> | <strong>Email:</strong> <span id="customer-email"></span></p>
+        <p><strong>Deskripsi:</strong></p>
+        <p id="ticket-desc"></p>
+        <p><strong>Status:</strong> <span id="ticket-status"></span> | <strong>Kategori:</strong> <span id="ticket-category"></span></p>
+        <p><strong>Dibuat:</strong> <span id="created-at"></span></p>
+
+        <h3><i class="fas fa-comments"></i> Chat History</h3>
+        <div id="chat"></div>
+
+        <div id="input-area">
+          <input type="text" id="message-input" placeholder="Balas sebagai admin..." onkeypress="if(event.key==='Enter') sendMessage()">
+          <button id="send-btn">Kirim</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notification" id="notification">
+    <i class="fas fa-bell"></i> Ticket baru masuk!
+  </div>
+
+  <audio id="notif-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3"></audio>
+
+  <script>
+    const host = window.location.hostname;
+    const socket = io(`http://${host}:3000`);
+    let currentTicketId = null;
+    let allTickets = [];
+    const notifSound = document.getElementById('notif-sound');
+    const notification = document.getElementById('notification');
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const main = document.getElementById('main-content');
+      sidebar.classList.toggle('open');
+      main.classList.toggle('shift');
+    }
+
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+      document.querySelector(`.menu-item[onclick="showPage('${pageId}')"]`).classList.add('active');
+      if (pageId === 'tickets') loadTickets();
+    }
+
+    async function loadTickets() {
+      try {
+        const res = await fetch(`http://${host}:3000/api/tickets`);
+        allTickets = await res.json();
+        renderTickets(allTickets);
+        updateStats(allTickets);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function renderTickets(tickets) {
+      const container = document.getElementById('tickets-grid');
+      container.innerHTML = tickets.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: #7f8c8d; font-size: 20px;">Belum ada ticket</p>' : '';
+      tickets.forEach(ticket => {
+        const card = document.createElement('div');
+        card.className = 'ticket-card';
+        const statusClass = ticket.status === 'open' ? 'status-open' : ticket.status === 'in_progress' ? 'status-in_progress' : 'status-resolved';
+        card.innerHTML = `
+          <div class="ticket-header ${statusClass}">${ticket.status.toUpperCase()}</div>
+          <div class="ticket-body">
+            <h3>${ticket.title}</h3>
+            <div class="info"><strong>Pelanggan:</strong> ${ticket.user?.name || 'Unknown'} (${ticket.user?.email || ''})</div>
+            <div class="info"><strong>Kategori:</strong> ${ticket.category || 'Belum dikategorikan'}</div>
+            <div class="info"><strong>Dibuat:</strong> ${new Date(ticket.createdAt).toLocaleString('id-ID')}</div>
+            <div class="actions">
+              <select onchange="updateStatus(${ticket.id}, this.value)">
+                <option value="open" ${ticket.status === 'open' ? 'selected' : ''}>Open</option>
+                <option value="in_progress" ${ticket.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
+                <option value="resolved" ${ticket.status === 'resolved' ? 'selected' : ''}>Resolved</option>
+              </select>
+              <button onclick="openModal(${JSON.stringify(ticket).replace(/"/g, '&quot;')} )">Lihat Chat</button>
+            </div>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function openModal(ticket) {
+      currentTicketId = ticket.id;
+      document.getElementById('modal-overlay').style.display = 'flex';
+      document.getElementById('ticket-id').textContent = ticket.id;
+      document.getElementById('ticket-title').textContent = ticket.title;
+      document.getElementById('customer-name').textContent = ticket.user?.name || 'Unknown';
+      document.getElementById('customer-email').textContent = ticket.user?.email || '-';
+      document.getElementById('ticket-desc').textContent = ticket.description;
+      document.getElementById('ticket-status').textContent = ticket.status.toUpperCase();
+      document.getElementById('ticket-category').textContent = ticket.category || 'Belum dikategorikan';
+      document.getElementById('created-at').textContent = new Date(ticket.createdAt).toLocaleString('id-ID');
+
+      const chat = document.getElementById('chat');
+      chat.innerHTML = '';
+      ticket.messages.forEach(addMessage);
+
+      socket.emit('joinTicketRoom', ticket.id);
+    }
+
+    function closeModal() {
+      document.getElementById('modal-overlay').style.display = 'none';
+      if (currentTicketId) {
+        socket.emit('leaveRoom', currentTicketId); // optional
+        currentTicketId = null;
+      }
+    }
+
+    function addMessage(msg) {
+      const chat = document.getElementById('chat');
+      const div = document.createElement('div');
+      div.className = `message ${msg.sender}`;
+      div.innerHTML = `
+        ${msg.message}
+        <small>${new Date(msg.createdAt).toLocaleString('id-ID')}</small>
+      `;
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    document.getElementById('send-btn').onclick = sendMessage;
+
+    function sendMessage() {
+      const input = document.getElementById('message-input');
+      const message = input.value.trim();
+      if (!message || !currentTicketId) return;
+      socket.emit('sendMessage', { ticketId: currentTicketId, message, sender: 'admin' });
+      input.value = '';
+    }
+
+    async function updateStatus(ticketId, newStatus) {
+      await fetch(`http://${host}:3000/api/tickets/${ticketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      loadTickets();
+    }
+
+    function updateStats(tickets) {
+      const today = new Date().toDateString();
+      const todayTickets = tickets.filter(t => new Date(t.createdAt).toDateString() === today).length;
+      const open = tickets.filter(t => t.status === 'open').length;
+      const progress = tickets.filter(t => t.status === 'in_progress').length;
+      const resolved = tickets.filter(t => t.status === 'resolved').length;
+
+      document.getElementById('stats').innerHTML = `
+        <div class="stat-card">
+          <div class="stat-number">${tickets.length}</div>
+          <div class="stat-label">Total Ticket</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">${todayTickets}</div>
+          <div class="stat-label">Baru Hari Ini</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--danger);">${open}</div>
+          <div class="stat-label">Open</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--warning);">${progress}</div>
+          <div class="stat-label">In Progress</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" style="color: var(--success);">${resolved}</div>
+          <div class="stat-label">Resolved</div>
+        </div>
+      `;
+    }
+
+    socket.on('newTicket', () => {
+      loadTickets();
+      notification.style.display = 'block';
+      notifSound.play();
+      setTimeout(() => notification.style.display = 'none', 5000);
+    });
+
+    socket.on('newMessage', (msg) => {
+      if (msg.ticketId === currentTicketId) addMessage(msg);
+    });
+
+    socket.on('ticketUpdated', () => loadTickets());
+
+    loadTickets();
+    setInterval(loadTickets, 15000);
+  </script>
+</body>
+</html>
