@@ -100,6 +100,22 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token diperlukan' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { userId, username, role }
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token tidak valid atau kadaluarsa' });
+  }
+};
+
 // Proteksi create ticket
 app.post('/api/tickets', authMiddleware, async (req, res) => {
       try {
@@ -178,6 +194,21 @@ app.get('/api/tickets/:id', async (req, res) => {
   }
 });
 
+// Get all customers
+app.get('/api/customers', async (req, res) => {
+  try {
+    const customers = await prisma.user.findMany({
+      where: { role: 'customer' },
+      select: { id: true, username: true, name: true, address: true, status: true },
+      orderBy: { createdAt: 'desc' }
+    });
+    res.json(customers);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: 'Gagal ambil data customer' });
+  }
+});
+
 // Socket.IO Real-time Chat
 io.on('connection', (socket) => {
   console.log('Client connected:', socket.id);
@@ -227,22 +258,6 @@ app.patch('/api/tickets/:id', async (req, res) => {
     res.status(500).json({ error: 'Gagal update status' });
   }
 });
-
-const authMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token diperlukan' });
-  }
-
-  const token = authHeader.split(' ')[1];
-  try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded; // { userId, username, role }
-    next();
-  } catch (err) {
-    return res.status(401).json({ error: 'Token tidak valid atau kadaluarsa' });
-  }
-};
 
 // Graceful shutdown
 process.on('SIGINT', async () => {

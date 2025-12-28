@@ -6,6 +6,28 @@
   <title>Admin Panel Ticketing</title>
   <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <!-- Proteksi login -->
+  <script>
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) {
+      window.location.href = '/login.html';
+    }
+
+    // Tampilkan nama admin & tombol logout
+    document.addEventListener('DOMContentLoaded', () => {
+      const adminName = localStorage.getItem('adminName') || 'Admin';
+      const logoEl = document.querySelector('.logo');
+      if (logoEl) {
+        logoEl.innerHTML = `<i class="fas fa-headset"></i> Halo, ${adminName}`;
+      }
+    });
+
+    function logout() {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminName');
+      window.location.href = '/login.html';
+    }
+  </script>
   <style>
     :root {
       --primary: #2c3e50;
@@ -76,6 +98,11 @@
     <div class="logo">
       <i class="fas fa-headset"></i> Admin Ticketing Support
     </div>
+    <div style="margin-left: auto; padding-right: 20px;">
+      <button onclick="logout()" style="background: #e74c3c; padding: 10px 20px; border: none; color: white; border-radius: 6px; cursor: pointer; font-weight: bold;">
+      <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </div>
   </header>
 
   <div class="sidebar" id="sidebar">
@@ -84,6 +111,9 @@
     </div>
     <div class="menu-item" onclick="showPage('tickets')">
       <i class="fas fa-ticket-alt"></i> List Ticket
+    </div>
+      <div class="menu-item" onclick="showPage('kelola-customer')">
+    <i class="fas fa-users"></i> Kelola Customer
     </div>
   </div>
 
@@ -99,6 +129,16 @@
       <div class="container">
         <h2><i class="fas fa-ticket-alt"></i> Daftar Ticket</h2>
         <div id="tickets-grid"></div>
+      </div>
+    </div>
+
+    <div id="kelola-customer" class="page">
+      <div class="container">
+        <h2><i class="fas fa-users"></i> Kelola Customer</h2>
+        <button onclick="openAddCustomerModal()" style="padding: 12px 24px; background: #27ae60; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; margin-bottom: 20px;">
+        + Tambah Customer Baru
+        </button>
+      <div id="customer-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px;"></div>
       </div>
     </div>
   </div>
@@ -127,6 +167,26 @@
       </div>
     </div>
   </div>
+
+  <!-- Modal Tambah Customer -->
+<div class="modal-overlay" id="customer-modal" onclick="closeCustomerModal()">
+  <div class="modal-content" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <h2>Tambah Customer Baru</h2>
+      <span class="modal-close" onclick="closeCustomerModal()">&times;</span>
+    </div>
+    <div class="modal-body">
+      <input type="text" id="new-username" placeholder="Username (misal: ciptangadirejo)" style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd;">
+      <input type="text" id="new-name" placeholder="Nama Lengkap" style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd;">
+      <input type="password" id="new-password" placeholder="Password" style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd;">
+      <input type="text" id="new-address" placeholder="Alamat Lengkap (untuk Maps)" style="width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: 1px solid #ddd;">
+      <button onclick="addCustomer()" style="width: 100%; padding: 15px; background: #3498db; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 18px;">
+        Simpan Customer
+      </button>
+      <p class="error" id="customer-error" style="margin-top: 15px;"></p>
+    </div>
+  </div>
+</div>
 
   <div class="notification" id="notification">
     <i class="fas fa-bell"></i> Ticket baru masuk!
@@ -296,8 +356,87 @@
       if (msg.ticketId === currentTicketId) addMessage(msg);
     });
 
-    socket.on('ticketUpdated', () => loadTickets());
+    socket.on('ticketUpdated', () => loadTickets());    
 
+
+        // === KODE KELOLA CUSTOMER (TAMBAHKAN DI SINI) ===
+
+    async function loadCustomers() {
+      try {
+        const res = await fetch(`http://${host}:3000/api/customers`);
+        const customers = await res.json();
+        const container = document.getElementById('customer-list');
+        container.innerHTML = customers.length === 0 ? '<p style="grid-column: 1/-1; text-align: center; color: #7f8c8d; font-size: 20px;">Belum ada customer terdaftar</p>' : '';
+        customers.forEach(c => {
+          const card = document.createElement('div');
+          card.style = 'background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);';
+          card.innerHTML = `
+            <strong>Username:</strong> ${c.username}<br>
+            <strong>Nama:</strong> ${c.name}<br>
+            <strong>Alamat:</strong> ${c.address || 'Belum diisi'}<br>
+            <strong>Status:</strong> ${c.status.toUpperCase()}
+          `;
+          container.appendChild(card);
+        });
+      } catch (err) {
+        console.error('Gagal load customer:', err);
+      }
+    }
+
+    function openAddCustomerModal() {
+      document.getElementById('customer-modal').style.display = 'flex';
+      document.getElementById('customer-error').textContent = '';
+    }
+
+    function closeCustomerModal() {
+      document.getElementById('customer-modal').style.display = 'none';
+    }
+
+    async function addCustomer() {
+      const username = document.getElementById('new-username').value.trim();
+      const name = document.getElementById('new-name').value.trim();
+      const password = document.getElementById('new-password').value;
+      const address = document.getElementById('new-address').value.trim();
+      const errorEl = document.getElementById('customer-error');
+
+      if (!username || !name || !password) {
+        errorEl.textContent = 'Username, nama, dan password wajib diisi';
+        return;
+      }
+
+      try {
+        const res = await fetch(`http://${host}:3000/api/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, name, password, address })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alert('Customer berhasil ditambah!');
+          closeCustomerModal();
+          loadCustomers();
+        } else {
+          errorEl.textContent = data.error || 'Gagal tambah customer';
+        }
+      } catch (err) {
+        errorEl.textContent = 'Gagal koneksi ke server';
+      }
+    }
+
+    // Load customer saat buka menu
+    function showPage(pageId) {
+      document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+      document.getElementById(pageId).classList.add('active');
+      document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
+      document.querySelector(`.menu-item[onclick="showPage('${pageId}')"]`).classList.add('active');
+      
+      if (pageId === 'tickets') {
+        loadTickets();
+      } else if (pageId === 'kelola-customer') {
+        loadCustomers();
+      }
+    }
+    
     loadTickets();
     setInterval(loadTickets, 15000);
   </script>

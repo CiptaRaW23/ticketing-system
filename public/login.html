@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login Admin Ticketing</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <style>
+    body { 
+      font-family: 'Segoe UI', Arial, sans-serif; 
+      background: linear-gradient(135deg, #2c3e50, #3498db); 
+      color: white; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      height: 100vh; 
+      margin: 0; 
+    }
+    .login-container { 
+      background: white; 
+      color: #333; 
+      padding: 40px; 
+      border-radius: 15px; 
+      width: 380px; 
+      box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
+      text-align: center;
+    }
+    .logo { 
+      font-size: 60px; 
+      color: #3498db; 
+      margin-bottom: 20px; 
+    }
+    h2 { margin: 0 0 30px 0; color: #2c3e50; }
+    input { 
+      width: 100%; 
+      padding: 15px; 
+      margin: 12px 0; 
+      border: 1px solid #ddd; 
+      border-radius: 8px; 
+      font-size: 16px; 
+    }
+    button { 
+      width: 100%; 
+      padding: 15px; 
+      background: #3498db; 
+      color: white; 
+      border: none; 
+      border-radius: 8px; 
+      cursor: pointer; 
+      font-size: 18px; 
+      margin-top: 10px;
+    }
+    button:hover { background: #2980b9; }
+    .error { color: #e74c3c; margin-top: 15px; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <div class="logo">
+      <i class="fas fa-headset"></i>
+    </div>
+    <h2>Login Admin Ticketing</h2>
+    <input type="text" id="username" placeholder="Username" required>
+    <input type="password" id="password" placeholder="Password" required>
+    <button onclick="login()">Login</button>
+    <p class="error" id="error-msg"></p>
+  </div>
+
+  <script>
+    const host = window.location.hostname;
+
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      const password = document.getElementById('password').value;
+      const errorMsg = document.getElementById('error-msg');
+
+      if (!username || !password) {
+        errorMsg.textContent = 'Username dan password wajib diisi';
+        return;
+      }
+
+      try {
+        const res = await fetch(`http://${host}:3000/api/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await res.json();
+
+        if (data.success && data.user.role.toLowerCase() === 'admin') {
+          localStorage.setItem('adminToken', data.token);
+          localStorage.setItem('adminName', data.user.name);
+          window.location.href = '/';
+        } else {
+          errorMsg.textContent = 'Hanya admin yang boleh login di sini';
+        }
+      } catch (err) {
+        errorMsg.textContent = 'Gagal login. Periksa koneksi atau credential';
+      }
+    }
+
+    // Tekan Enter untuk login
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') login();
+    });
+  </script>
+</body>
+</html>

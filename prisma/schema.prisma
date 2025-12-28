@@ -14,31 +14,51 @@ datasource db {
 
 model User {
   id        Int      @id @default(autoincrement())
-  name      String
-  email     String   @unique
-  role      String   // 'customer', 'admin', 'support'
+  username  String   @unique 
+  name      String   
+  password  String   // hashed password (bcrypt)
+  role      String   @default("customer") // "customer", "admin"
+  status    String   @default("active")   // "active", "inactive"
+  address   String?  // alamat lengkap untuk Google Maps
   tickets   Ticket[]
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
+// Ticket
 model Ticket {
-  id          Int           @id @default(autoincrement())
-  title       String
-  description String
-  category    String?       // hasil otomatis dari NLP nanti
-  status      String        @default("open")  // open, in_progress, resolved, closed
-  userId      Int
-  user        User          @relation(fields: [userId], references: [id])
-  messages    ChatMessage[]
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id           Int      @id @default(autoincrement())
+  title        String
+  description  String
+  category     String?  
+  status       String   @default("open") // "open", "in_progress", "resolved"
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  messages     ChatMessage[]
+  address      String?  
+  mapsLink     String?  
+  autoResolved Boolean  @default(false) 
+  resolvedBy   String?  // "bot", "admin", null
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
+// ChatMessage
 model ChatMessage {
   id        Int      @id @default(autoincrement())
   ticketId  Int
   ticket    Ticket   @relation(fields: [ticketId], references: [id])
-  sender    String   // 'customer', 'bot', 'admin'
+  sender    String   // "customer", "admin", "bot"
   message   String
   createdAt DateTime @default(now())
+}
+
+// Training data untuk bot NLP
+model BotTraining {
+  id        Int      @id @default(autoincrement())
+  text      String   
+  category  String
+  response  String   
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
