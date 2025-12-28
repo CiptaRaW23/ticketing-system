@@ -6,6 +6,9 @@ const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-if-env-not-set';
 
 // Setup connection pool ke PostgreSQL
 const pool = new Pool({
@@ -38,26 +41,103 @@ app.get('/', (req, res) => {
   res.send('<h1>Ticketing Server Berjalan! 🚀</h1><p>Gunakan Postman atau Flutter untuk test API.</p>');
 });
 
-// REST API: Create Ticket
-app.post('/api/tickets', async (req, res) => {
-  try {
-    const { title, description, userId } = req.body;
-    const ticket = await prisma.ticket.create({
-      data: {
-        title,
-        description,
-        userId: Number(userId),
-      },
-      include: { messages: true, user: true }
-    });
+// Register (untuk admin tambah customer baru dari panel nanti)
+app.post('/api/register', async (req, res) => {
+  const { username, name, password, address } = req.body;
 
-    io.emit('newTicket', ticket);
-
-    res.status(201).json(ticket);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Gagal buat ticket' });
+  if (!username || !password || !name) {
+    return res.status(400).json({ error: 'Username, nama, dan password wajib' });
   }
+
+  try {
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const user = await prisma.user.create({
+      data: {
+        username,
+        name,
+        password: hashedPassword,
+        address,
+        role: 'customer'
+      }
+    });
+    res.status(201).json({ success: true, user: { username: user.username, name: user.name } });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(400).json({ error: 'Username sudah digunakan' });
+    }
+    res.status(500).json({ error: 'Gagal register' });
+  }
+});
+
+// Login (customer & admin)
+app.post('/api/login', async (req, res) => {
+  const { username, password } = req.body;
+
+  try {
+    const user = await prisma.user.findUnique({ where: { username } });
+    if (!user || user.status !== 'active') {
+      return res.status(401).json({ error: 'Username atau password salah' });
+    }
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: 'Username atau password salah' });
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.username, role: user.role },
+      JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, username: user.username, name: user.name, role: user.role }
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal login' });
+  }
+});
+
+// Proteksi create ticket
+app.post('/api/tickets', authMiddleware, async (req, res) => {
+      try {
+      const { title, description, address: inputAddress } = req.body; // rename biar tidak bentrok
+      const userId = req.user.userId;
+
+      let address = inputAddress?.trim() || null;
+      if (!address) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { address: true }
+        });
+        address = user?.address || null;
+      }
+
+      let mapsLink = null;
+      if (address) {
+        const encoded = encodeURIComponent(address.trim());
+        mapsLink = `https://www.google.com/maps/search/?api=1&query=${encoded}`;
+      }
+
+      const ticket = await prisma.ticket.create({
+        data: {
+          title,
+          description,
+          userId,
+          address,   
+          mapsLink,   
+        },
+        include: { messages: true, user: true }
+      });
+
+      io.emit('newTicket', ticket);
+      res.status(201).json(ticket);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ error: 'Gagal buat ticket' });
+    }
 });
 
 // REST API: Get all tickets
@@ -148,6 +228,22 @@ app.patch('/api/tickets/:id', async (req, res) => {
   }
 });
 
+const authMiddleware = (req, res, next) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.status(401).json({ error: 'Token diperlukan' });
+  }
+
+  const token = authHeader.split(' ')[1];
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded; // { userId, username, role }
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Token tidak valid atau kadaluarsa' });
+  }
+};
+
 // Graceful shutdown
 process.on('SIGINT', async () => {
   console.log('\nShutting down server...');
@@ -167,17 +263,25 @@ process.on('SIGTERM', async () => {
   });
 });
 
+const os = require('os');
+
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    for (const addr of iface) {
+      if (addr.family === 'IPv4' && !addr.internal) {
+        return addr.address;
+      }
+    }
+  }
+  return 'localhost';
+}
+
 const PORT = 3000;
 server.listen(PORT, '0.0.0.0', () => {
+  const localIP = getLocalIP();
   console.log(`\n Server ticketing berjalan di port ${PORT}!`);
   console.log(`Akses lokal: http://localhost:${PORT}`);
-  const ip = require('os').networkInterfaces();
-  let localIp = '10.192.32.91';
-  Object.keys(ip).forEach(iface => {
-    ip[iface].forEach(addr => {
-      if (addr.family === 'IPv4' && !addr.internal) localIp = addr.address;
-    });
-  });
-  console.log(`Akses dari LAN: http://${localIp}:${PORT}`);
+  console.log(`Akses dari LAN: http://${localIP}:${PORT}`);
   console.log(`Prisma Studio: npx prisma studio\n`);
 });
