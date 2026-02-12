@@ -91,7 +91,7 @@
         if (data.success && data.user.role.toLowerCase() === 'admin') {
           localStorage.setItem('adminToken', data.token);
           localStorage.setItem('adminName', data.user.name);
-          window.location.href = '/';
+          window.location.href = '/admin/index.html';
         } else {
           errorMsg.textContent = 'Hanya admin yang boleh login di sini';
         }

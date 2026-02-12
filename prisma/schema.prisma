@@ -1,9 +1,6 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -12,53 +9,261 @@ datasource db {
   provider = "postgresql"
 }
 
+// ==================== ENUMS ====================
+// Enum untuk type safety dan validasi
+
+enum UserRole {
+  customer
+  admin
+}
+
+enum UserStatus {
+  active
+  inactive
+}
+
+enum TicketStatus {
+  open
+  in_progress
+  closed
+}
+
+enum TicketCategory {
+  gangguan    // Masalah teknis/koneksi
+  pertanyaan  // Pertanyaan umum
+  complaint   // Keluhan layanan
+  other       // Lainnya
+}
+
+enum TicketPriority {
+  low
+  medium
+  high
+}
+
+enum MessageSender {
+  customer
+  admin
+  bot
+}
+
+// ==================== USER MODEL ====================
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique 
-  name      String   
-  password  String   // hashed password (bcrypt)
-  role      String   @default("customer") // "customer", "admin"
-  status    String   @default("active")   // "active", "inactive"
-  address   String?  // alamat lengkap untuk Google Maps
-  tickets   Ticket[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        Int        @id @default(autoincrement())
+  username  String     @unique @db.VarChar(50)
+  name      String     @db.VarChar(100)
+  email     String?    @unique @db.VarChar(100)
+  phone     String?    @db.VarChar(20)
+  password  String     @db.VarChar(255) // hashed password (bcrypt)
+  role      UserRole   @default(customer)
+  status    UserStatus @default(active)
+  address   String?    @db.Text // alamat lengkap untuk Google Maps
+  
+  // Relations
+  tickets          Ticket[]  @relation("CustomerTickets")
+  assignedTickets  Ticket[]  @relation("AssignedToAdmin")
+  
+  // Audit fields
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("users")
+  @@index([role])
+  @@index([status])
+  @@index([email])
+  @@index([username])
 }
 
-// Ticket
+// ==================== TICKET MODEL ====================
 model Ticket {
-  id           Int      @id @default(autoincrement())
-  title        String
-  description  String
-  category     String?  
-  status       String   @default("open") // "open", "in_progress", "resolved"
+  id           Int            @id @default(autoincrement())
+  ticketNumber String         @unique @default(cuid()) // Unique ID, bisa custom jadi TKT-001
+  title        String         @db.VarChar(200)
+  description  String         @db.Text
+  
+  // Klasifikasi otomatis (diisi oleh bot NLP: TF-IDF + Naive Bayes)
+  category     TicketCategory? // Nullable, akan auto-classify
+  priority     TicketPriority? // Nullable, akan auto-classify
+  
+  // Confidence score dari klasifikasi (0.0 - 1.0)
+  categoryConfidence Float?     @db.Real // Seberapa yakin bot mengklasifikasi kategori
+  priorityConfidence Float?     @db.Real // Seberapa yakin bot mengklasifikasi prioritas
+  
+  // Status ticket
+  status       TicketStatus   @default(open)
+  
+  // Foreign Key - Customer yang buat ticket
   userId       Int
-  user         User     @relation(fields: [userId], references: [id])
+  user         User           @relation("CustomerTickets", fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Admin Assignment
+  assignedToId Int?
+  assignedTo   User?          @relation("AssignedToAdmin", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedAt   DateTime?
+  
+  // Relations
   messages     ChatMessage[]
-  address      String?  
-  mapsLink     String?  
-  autoResolved Boolean  @default(false) 
-  resolvedBy   String?  // "bot", "admin", null
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  
+  // Address & Maps
+  address      String?        @db.Text
+  mapsLink     String?        @db.VarChar(500)
+  
+  // Bot/AI features
+  autoResolved Boolean        @default(false) // Diselesaikan otomatis oleh bot
+  resolvedBy   String?        @db.VarChar(50) // "bot", "admin", atau username
+  
+  // SLA & Resolution tracking
+  resolvedAt   DateTime?      // Kapan ticket diselesaikan
+  closedAt     DateTime?      // Kapan ticket ditutup
+  responseTime Int?           // Waktu respon pertama (menit) - untuk SLA
+  resolutionTime Int?         // Total waktu penyelesaian (menit) - untuk analytics
+  
+  // Timestamps
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  
+  @@map("tickets")
+  @@index([userId])
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([ticketNumber])
+  @@index([createdAt])
+  @@index([assignedToId])
+  @@index([autoResolved]) // Index untuk tracking bot performance
 }
 
-// ChatMessage
+// ==================== CHAT MESSAGE MODEL ====================
 model ChatMessage {
-  id        Int      @id @default(autoincrement())
+  id        Int           @id @default(autoincrement())
+  
+  // Foreign Key
   ticketId  Int
-  ticket    Ticket   @relation(fields: [ticketId], references: [id])
-  sender    String   // "customer", "admin", "bot"
-  message   String
-  createdAt DateTime @default(now())
+  ticket    Ticket        @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  
+  sender    MessageSender
+  message   String        @db.Text
+  
+  // Metadata untuk tracking
+  isRead    Boolean       @default(false) // Apakah sudah dibaca
+  readAt    DateTime?     // Kapan dibaca
+  
+  // Timestamps
+  createdAt DateTime      @default(now())
+  
+  @@map("chat_messages")
+  @@index([ticketId])
+  @@index([sender])
+  @@index([createdAt])
+  @@index([isRead])
 }
 
-// Training data untuk bot NLP
+// ==================== BOT TRAINING MODEL ====================
+// Data training untuk TF-IDF + Naive Bayes
 model BotTraining {
   id        Int      @id @default(autoincrement())
-  text      String   
-  category  String
-  response  String   
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  
+  // Input text (keluhan customer)
+  text      String   @db.Text
+  
+  // Label untuk training
+  category  TicketCategory // Label kategori
+  priority  TicketPriority // Label prioritas
+  
+  // Response template (opsional, untuk auto-reply)
+  response  String?  @db.Text
+  
+  // Metadata untuk model training
+  confidence Float?   @default(0.0) // Confidence score saat digunakan
+  isActive   Boolean  @default(true) // Aktif dalam training set atau tidak
+  
+  // Training metrics
+  timesUsed  Int      @default(0) // Berapa kali data ini cocok dengan query
+  lastUsedAt DateTime?
+  
+  // Timestamps
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@map("bot_trainings")
+  @@index([category])
+  @@index([priority])
+  @@index([isActive])
+}
+
+// ==================== ADMIN ACTIVITY LOG ====================
+// Audit trail untuk tracking admin actions
+model AdminActivityLog {
+  id          Int      @id @default(autoincrement())
+  
+  adminId     Int                      // ID admin yang melakukan aksi
+  adminName   String   @db.VarChar(100) // Nama admin (denormalized untuk performa)
+  action      String   @db.VarChar(100) // "create_customer", "update_ticket", "delete_customer", "assign_ticket"
+  entityType  String   @db.VarChar(50)  // "ticket", "customer", "user"
+  entityId    Int?                      // ID entity yang diubah
+  
+  description String?  @db.Text         // Deskripsi lengkap aksi
+  ipAddress   String?  @db.VarChar(50)  // IP address admin
+  
+  // Metadata (untuk rollback jika perlu)
+  oldValue    String?  @db.Text         // Nilai sebelum diubah (JSON)
+  newValue    String?  @db.Text         // Nilai setelah diubah (JSON)
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  
+  @@map("admin_activity_logs")
+  @@index([adminId])
+  @@index([action])
+  @@index([entityType])
+  @@index([createdAt])
+}
+
+// ==================== SYSTEM SETTINGS ====================
+// Konfigurasi sistem (untuk tweak model & app behavior)
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  
+  key         String   @unique @db.VarChar(100) // Contoh: "bot_enabled", "min_confidence_threshold"
+  value       String   @db.Text                 // Nilai setting (bisa JSON)
+  description String?  @db.Text                 // Deskripsi setting
+  dataType    String   @db.VarChar(20)          // "string", "number", "boolean", "json"
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("system_settings")
+  @@index([key])
+}
+
+// ==================== BOT PERFORMANCE METRICS ====================
+// Tracking performa bot untuk continuous improvement
+model BotPerformanceMetric {
+  id                Int      @id @default(autoincrement())
+  
+  // Metrics periode (harian/mingguan)
+  date              DateTime @db.Date
+  
+  // Classification metrics
+  totalClassified   Int      @default(0) // Total ticket yang diklasifikasi
+  correctCategory   Int      @default(0) // Berapa yang benar kategorinya
+  correctPriority   Int      @default(0) // Berapa yang benar prioritasnya
+  
+  // Auto-resolution metrics
+  totalAutoResolved Int      @default(0) // Total ticket auto-resolved
+  successfulResolve Int      @default(0) // Yang benar-benar resolved (tidak reopen)
+  
+  // Performance metrics
+  avgConfidence     Float?   @db.Real    // Average confidence score
+  avgResponseTime   Float?   @db.Real    // Rata-rata waktu respon bot (detik)
+  
+  // Timestamps
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("bot_performance_metrics")
+  @@unique([date]) // Satu record per hari
+  @@index([date])
 }

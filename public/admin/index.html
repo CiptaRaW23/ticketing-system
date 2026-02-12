@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Panel - ISP Ticketing</title>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="styles/admin.css">
+</head>
+<body>
+  <!-- Mobile Hamburger -->
+  <div class="hamburger-mobile" id="hamburger-mobile">
+    <i class="fas fa-bars"></i>
+  </div>
+
+  <!-- Sidebar -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="logo">
+        <i class="fas fa-headset"></i> ISP Ticketing
+      </div>
+    </div>
+    
+    <div class="menu-section">
+      <div class="menu-item active" data-page="monitoring">
+        <i class="fas fa-chart-bar"></i> Monitoring
+      </div>
+      <div class="menu-item" data-page="tickets">
+        <i class="fas fa-ticket-alt"></i> List Ticket
+      </div>
+      <div class="menu-item" data-page="customers">
+        <i class="fas fa-users"></i> Kelola Customer
+      </div>
+    </div>
+    
+    <div class="logout-section">
+      <button class="logout-btn" id="logout-btn">
+        <i class="fas fa-sign-out-alt"></i> Logout
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Content Area -->
+  <div class="main-content" id="main-content">
+    <div id="page-container">
+      <div class="loading">
+        <i class="fas fa-spinner fa-spin"></i> Memuat halaman...
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification -->
+  <div class="notification" id="notification">
+    <i class="fas fa-bell"></i> Notifikasi
+  </div>
+
+  <!-- Audio Notification -->
+  <audio id="notif-sound" src="https://assets.mixkit.co/sfx/preview/mixkit-software-interface-start-2574.mp3"></audio>
+
+  <!-- Scripts -->
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+  <script src="components/auth.js"></script>
+  <script src="components/sidebar.js"></script>
+  
+  <script>
+    // ============================================
+    // GLOBAL VARIABLES
+    // ============================================
+    let socket;
+    let currentPage = 'monitoring';
+    let currentPageModule = null; // Track current page module untuk cleanup
+
+    // ============================================
+    // INITIALIZATION
+    // ============================================
+    async function initApp() {
+      console.log('[App] 🚀 Starting application...');
+      
+      const isAuthenticated = await checkAuth();
+      if (!isAuthenticated) {
+        console.log('[App] ❌ Not authenticated, redirecting to login...');
+        window.location.href = '/login.html';
+        return;
+      }
+
+      console.log('[App] ✅ Authenticated');
+      initSocket();
+      loadPage('monitoring');
+      setupEventListeners();
+    }
+
+    // ============================================
+    // SOCKET.IO CONNECTION
+    // ============================================
+    function initSocket() {
+      const host = window.location.hostname;
+      const API_BASE = `http://${host}:3000`;
+      
+      socket = io(API_BASE, {
+        transports: ['websocket'],
+        auth: { token: getToken() }
+      });
+
+      socket.on('connect', () => {
+        console.log('[Socket] ✅ Connected:', socket.id);
+      });
+      
+      socket.on('connect_error', (err) => {
+        console.error('[Socket] ❌ Connection error:', err.message);
+      });
+
+      socket.on('newTicket', () => {
+        console.log('[Socket] 🎫 New ticket received');
+        showNotification('Ticket baru masuk!');
+        
+        // Auto-refresh current page if relevant
+        if (currentPage === 'monitoring' || currentPage === 'tickets') {
+          refreshCurrentPage();
+        }
+      });
+
+      socket.on('ticketUpdated', () => {
+        console.log('[Socket] 🔄 Ticket updated');
+        
+        // Auto-refresh current page if relevant
+        if (currentPage === 'monitoring' || currentPage === 'tickets') {
+          refreshCurrentPage();
+        }
+      });
+    }
+
+    // ============================================
+    // PAGE LOADING WITH NAMESPACE PATTERN
+    // ============================================
+    async function loadPage(pageName) {
+      console.log(`[App] 📄 Loading page: ${pageName}`);
+      currentPage = pageName;
+      const container = document.getElementById('page-container');
+      
+      container.innerHTML = '<div class="loading"><i class="fas fa-spinner fa-spin"></i> Memuat halaman...</div>';
+
+      // ========================================
+      // CLEANUP PREVIOUS PAGE
+      // ========================================
+      if (currentPageModule && typeof currentPageModule.cleanup === 'function') {
+        console.log(`[App] 🧹 Cleaning up previous page...`);
+        try {
+          currentPageModule.cleanup();
+        } catch (error) {
+          console.warn('[App] ⚠️ Cleanup error:', error);
+        }
+      }
+      currentPageModule = null;
+
+      try {
+        // ========================================
+        // FETCH PAGE HTML
+        // ========================================
+        const response = await fetch(`pages/${pageName}.html`);
+        if (!response.ok) throw new Error(`Failed to load page: ${response.status}`);
+        
+        const html = await response.text();
+        
+        // ========================================
+        // PARSE HTML & SEPARATE SCRIPTS
+        // ========================================
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = html;
+        
+        // Remove scripts from HTML content
+        const scripts = Array.from(tempDiv.querySelectorAll('script'));
+        scripts.forEach(script => script.remove());
+        
+        // Insert HTML without scripts
+        container.innerHTML = tempDiv.innerHTML;
+        
+        // ========================================
+        // EXECUTE SCRIPTS
+        // ========================================
+        tempDiv.innerHTML = html; // Reset to get scripts again
+        tempDiv.querySelectorAll('script').forEach(oldScript => {
+          const newScript = document.createElement('script');
+          newScript.textContent = oldScript.textContent;
+          
+          // Add identifier for debugging
+          newScript.setAttribute('data-page', pageName);
+          
+          // Copy other attributes if any
+          Array.from(oldScript.attributes).forEach(attr => {
+            if (attr.name !== 'data-page') {
+              newScript.setAttribute(attr.name, attr.value);
+            }
+          });
+          
+          document.body.appendChild(newScript);
+          
+          // Remove script after execution to prevent DOM pollution
+          setTimeout(() => {
+            if (newScript.parentNode) {
+              newScript.parentNode.removeChild(newScript);
+            }
+          }, 100);
+        });
+
+        // ========================================
+        // UPDATE UI STATE
+        // ========================================
+        document.body.className = pageName + '-page';
+        document.querySelectorAll('.menu-item').forEach(item => {
+          item.classList.remove('active');
+          if (item.dataset.page === pageName) item.classList.add('active');
+        });
+
+        // ========================================
+        // INITIALIZE PAGE WITH NAMESPACE PATTERN
+        // ========================================
+        setTimeout(() => {
+          const pageNameCap = pageName.charAt(0).toUpperCase() + pageName.slice(1);
+          const PageModule = window[`${pageNameCap}Page`];
+          
+          if (PageModule && typeof PageModule.init === 'function') {
+            console.log(`[App] 🎯 Initializing ${pageNameCap}Page module...`);
+            try {
+              PageModule.init();
+              currentPageModule = PageModule; // Store reference for cleanup
+              console.log(`[App] ✅ ${pageNameCap}Page initialized successfully`);
+            } catch (error) {
+              console.error(`[App] ❌ Error initializing ${pageNameCap}Page:`, error);
+            }
+          } else {
+            console.warn(`[App] ⚠️ ${pageNameCap}Page module not found`);
+            
+            // Fallback to old pattern (untuk backward compatibility)
+            const oldInitFunc = `init${pageNameCap}`;
+            if (typeof window[oldInitFunc] === 'function') {
+              console.log(`[App] 🔄 Using legacy init function: ${oldInitFunc}`);
+              window[oldInitFunc]();
+            }
+          }
+        }, 150); // Delay untuk memastikan script sudah dieksekusi
+        
+      } catch (error) {
+        console.error('[App] ❌ Error loading page:', error);
+        container.innerHTML = `
+          <div class="error-msg" style="text-align: center; padding: 60px 20px; color: var(--danger);">
+            <i class="fas fa-exclamation-triangle" style="font-size: 64px; opacity: 0.3; margin-bottom: 16px; display: block;"></i>
+            <p style="font-size: 18px; font-weight: 600; margin-bottom: 10px;">Gagal Memuat Halaman</p>
+            <p style="font-size: 14px; opacity: 0.7; margin-bottom: 20px;">${error.message}</p>
+            <button onclick="loadPage('${pageName}')" class="btn btn-refresh">
+              <i class="fas fa-sync-alt"></i> Coba Lagi
+            </button>
+          </div>
+        `;
+      }
+    }
+
+    // ============================================
+    // REFRESH CURRENT PAGE
+    // ============================================
+    function refreshCurrentPage() {
+      if (!currentPageModule) {
+        console.log('[App] ⚠️ No page module to refresh, reloading page instead');
+        loadPage(currentPage);
+        return;
+      }
+      
+      if (typeof currentPageModule.refresh === 'function') {
+        console.log(`[App] 🔄 Refreshing ${currentPage} page...`);
+        try {
+          currentPageModule.refresh();
+        } catch (error) {
+          console.error('[App] ❌ Error refreshing page:', error);
+          loadPage(currentPage); // Fallback to full reload
+        }
+      } else {
+        console.log('[App] ⚠️ Page module has no refresh method, reloading page');
+        loadPage(currentPage);
+      }
+    }
+
+    // ============================================
+    // EVENT LISTENERS SETUP
+    // ============================================
+    function setupEventListeners() {
+      console.log('[App] 🎧 Setting up event listeners...');
+      
+      // Menu navigation
+      document.querySelectorAll('.menu-item').forEach(item => {
+        item.addEventListener('click', () => {
+          const page = item.dataset.page;
+          loadPage(page);
+          
+          // Close sidebar on mobile after click
+          if (window.innerWidth <= 992) {
+            toggleSidebar();
+          }
+        });
+      });
+
+      // Logout button
+      document.getElementById('logout-btn').addEventListener('click', logout);
+      
+      // Mobile hamburger
+      document.getElementById('hamburger-mobile').addEventListener('click', toggleSidebar);
+    }
+
+    // ============================================
+    // NOTIFICATION
+    // ============================================
+    function showNotification(message) {
+      const notif = document.getElementById('notification');
+      notif.innerHTML = `<i class="fas fa-bell"></i> ${message}`;
+      notif.style.display = 'block';
+      
+      // Play sound
+      document.getElementById('notif-sound').play().catch((err) => {
+        console.warn('[Notification] Sound play failed:', err);
+      });
+      
+      // Auto hide after 5 seconds
+      setTimeout(() => {
+        notif.style.display = 'none';
+      }, 5000);
+    }
+
+    // ============================================
+    // EXPORT FUNCTIONS FOR GLOBAL ACCESS
+    // ============================================
+    window.loadPage = loadPage;
+    window.refreshCurrentPage = refreshCurrentPage;
+    window.showNotification = showNotification;
+
+    // ============================================
+    // START APP WHEN DOM IS READY
+    // ============================================
+    document.addEventListener('DOMContentLoaded', initApp);
+  </script>
+</body>
+</html>

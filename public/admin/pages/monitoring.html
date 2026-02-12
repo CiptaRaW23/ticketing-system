@@ -1,0 +1,519 @@
+<!-- pages/monitoring.html -->
+<div class="dashboard-header">
+  <h2>
+    <i class="fas fa-chart-bar"></i> Dashboard Monitoring
+  </h2>
+  <div class="header-actions">
+    <button class="btn-refresh" onclick="MonitoringPage.refresh()">
+      <i class="fas fa-sync-alt"></i> Refresh Data
+    </button>
+    <div class="user-badge">
+      <div class="user-avatar-small">A</div>
+      <strong class="admin-name">Admin</strong>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-content">
+  <!-- Stats Grid -->
+  <div class="stats-grid">
+    <div class="stat-card blue">
+      <h3>Total Ticket</h3>
+      <div class="value" id="mon-stat-total">0</div>
+      <div class="trend up">
+        <i class="fas fa-arrow-up"></i> <span id="mon-total-trend">Memuat...</span>
+      </div>
+    </div>
+
+    <div class="stat-card orange">
+      <h3>Ticket Open</h3>
+      <div class="value" id="mon-stat-open">0</div>
+      <div class="trend warning">
+        <i class="fas fa-exclamation-triangle"></i> Perlu perhatian segera
+      </div>
+    </div>
+
+    <div class="stat-card green">
+      <h3>Ticket Resolved</h3>
+      <div class="value" id="mon-stat-resolved">0</div>
+      <div class="trend up">
+        <i class="fas fa-check-circle"></i> <span id="mon-resolved-trend">Memuat...</span>
+      </div>
+    </div>
+
+    <div class="stat-card purple">
+      <h3>In Progress</h3>
+      <div class="value" id="mon-stat-progress">0</div>
+      <div class="trend info">
+        <i class="fas fa-spinner"></i> Sedang ditangani
+      </div>
+    </div>
+
+    <div class="stat-card cyan">
+      <h3>Bot Success Rate</h3>
+      <div class="value" id="mon-stat-bot-rate">0%</div>
+      <div class="trend info">
+        <i class="fas fa-robot"></i> <span id="mon-bot-count">0</span> tickets auto-resolved
+      </div>
+    </div>
+
+    <div class="stat-card red">
+      <h3>Avg Response Time</h3>
+      <div class="value" id="mon-stat-response">-</div>
+      <div class="trend up">
+        <i class="fas fa-bolt"></i> 10x faster dengan bot
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+    <div class="chart-container">
+      <div class="chart-header">
+        <h3><i class="fas fa-chart-line"></i> Trend Ticket Mingguan</h3>
+        <div class="chart-filter">
+          <select>
+            <option>7 Hari Terakhir</option>
+            <option>30 Hari Terakhir</option>
+            <option>3 Bulan Terakhir</option>
+          </select>
+        </div>
+      </div>
+      <canvas id="mon-ticketTrendChart" style="max-height: 300px;"></canvas>
+    </div>
+
+    <div class="chart-container">
+      <div class="chart-header">
+        <h3><i class="fas fa-chart-pie"></i> Status Ticket</h3>
+      </div>
+      <canvas id="mon-categoryPieChart" style="max-height: 300px;"></canvas>
+    </div>
+  </div>
+
+  <!-- Bot Performance Chart -->
+  <div class="chart-container" style="margin-bottom: 30px;">
+    <div class="chart-header">
+      <h3><i class="fas fa-robot"></i> Bot vs Admin Performance</h3>
+      <div class="chart-filter">
+        <select>
+          <option>Bulan Ini</option>
+          <option>3 Bulan Terakhir</option>
+          <option>6 Bulan Terakhir</option>
+        </select>
+      </div>
+    </div>
+    <canvas id="mon-botPerformanceChart" style="max-height: 250px;"></canvas>
+  </div>
+
+  <!-- Recent Tickets Table -->
+  <div class="table-container">
+    <div class="table-header">
+      <h3><i class="fas fa-ticket-alt"></i> Ticket Terbaru (Today)</h3>
+      <button class="btn-view-all" onclick="loadPage('tickets')">
+        <i class="fas fa-list"></i> Lihat Semua
+      </button>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Ticket ID</th>
+          <th>Customer</th>
+          <th>Subject</th>
+          <th>Status</th>
+          <th>Resolved By</th>
+          <th>Time</th>
+          <th>Aksi</th>
+        </tr>
+      </thead>
+      <tbody id="mon-recent-tickets">
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 60px 20px; color: var(--gray);">
+            <i class="fas fa-spinner fa-spin" style="font-size: 48px; opacity: 0.3; margin-bottom: 16px; display: block;"></i>
+            <p style="font-size: 16px; font-weight: 500;">Memuat data ticket...</p>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function() {
+  'use strict';
+  
+  // ============================================
+  // PRIVATE VARIABLES - Tidak bisa diakses dari luar
+  // ============================================
+  let trendChart = null;
+  let pieChart = null;
+  let botChart = null;
+  
+  // ============================================
+  // PRIVATE FUNCTIONS
+  // ============================================
+  
+  function initCharts() {
+    console.log('[Monitoring] Initializing charts...');
+    
+    // Destroy existing charts if any
+    if (trendChart) {
+      trendChart.destroy();
+      trendChart = null;
+    }
+    if (pieChart) {
+      pieChart.destroy();
+      pieChart = null;
+    }
+    if (botChart) {
+      botChart.destroy();
+      botChart = null;
+    }
+    
+    // Trend Chart
+    const trendCtx = document.getElementById('mon-ticketTrendChart');
+    if (trendCtx) {
+      trendChart = new Chart(trendCtx.getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'],
+          datasets: [
+            {
+              label: 'Ticket Masuk',
+              data: [0, 0, 0, 0, 0, 0, 0],
+              borderColor: '#667eea',
+              backgroundColor: 'rgba(102, 126, 234, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointBackgroundColor: '#667eea',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 4
+            },
+            {
+              label: 'Ticket Resolved',
+              data: [0, 0, 0, 0, 0, 0, 0],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.4,
+              fill: true,
+              pointBackgroundColor: '#10b981',
+              pointBorderColor: '#fff',
+              pointBorderWidth: 2,
+              pointRadius: 4
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              display: true,
+              position: 'top',
+              labels: { usePointStyle: true, padding: 15, font: { size: 13, weight: '600' } }
+            },
+            tooltip: {
+              backgroundColor: 'rgba(0, 0, 0, 0.8)',
+              padding: 12,
+              cornerRadius: 8
+            }
+          },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // Pie Chart
+    const pieCtx = document.getElementById('mon-categoryPieChart');
+    if (pieCtx) {
+      pieChart = new Chart(pieCtx.getContext('2d'), {
+        type: 'doughnut',
+        data: {
+          labels: ['Open', 'In Progress', 'Closed'],
+          datasets: [{
+            data: [0, 0, 0],
+            backgroundColor: ['#f59e0b', '#8b5cf6', '#10b981'],
+            borderWidth: 0,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                  const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
+                  return `${context.label}: ${context.parsed} (${percentage}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // Bot Chart
+    const botCtx = document.getElementById('mon-botPerformanceChart');
+    if (botCtx) {
+      botChart = new Chart(botCtx.getContext('2d'), {
+        type: 'bar',
+        data: {
+          labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+          datasets: [
+            {
+              label: 'Resolved by Bot',
+              data: [0, 0, 0, 0],
+              backgroundColor: '#667eea',
+              borderRadius: 8
+            },
+            {
+              label: 'Resolved by Admin',
+              data: [0, 0, 0, 0],
+              backgroundColor: '#a0aec0',
+              borderRadius: 8
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y: { beginAtZero: true, grid: { color: 'rgba(0, 0, 0, 0.05)' } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+  }
+
+  async function loadMonitoringData() {
+    try {
+      console.log('[Monitoring] Loading data from API...');
+
+      const res = await fetch(`${window.API_BASE}/api/tickets`, {
+        headers: window.getAuthHeaders(),
+        cache: 'no-cache'
+      });
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}: ${await res.text()}`);
+      }
+
+      const tickets = await res.json();
+      console.log('[Monitoring] ✅ Loaded', tickets.length, 'tickets');
+
+      updateStats(tickets);
+      updateCharts(tickets);
+      renderRecentTickets(tickets);
+    } catch (error) {
+      console.error('[Monitoring] ❌ Error loading data:', error);
+      
+      const tbody = document.getElementById('mon-recent-tickets');
+      if (tbody) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="7" style="text-align: center; padding: 60px 20px; color: var(--danger);">
+              <i class="fas fa-exclamation-triangle" style="font-size: 64px; opacity: 0.3; margin-bottom: 16px; display: block;"></i>
+              <p style="font-size: 16px; font-weight: 500;">Gagal memuat data monitoring</p>
+              <p style="font-size: 14px; opacity: 0.7; margin-top: 8px;">${error.message}</p>
+              <button onclick="MonitoringPage.refresh()" class="btn-refresh" style="margin-top: 20px;">
+                <i class="fas fa-sync-alt"></i> Coba Lagi
+              </button>
+            </td>
+          </tr>
+        `;
+      }
+    }
+  }
+
+  function updateStats(tickets) {
+    const elTotal = document.getElementById('mon-stat-total');
+    const elOpen = document.getElementById('mon-stat-open');
+    const elResolved = document.getElementById('mon-stat-resolved'); 
+    const elProgress = document.getElementById('mon-stat-progress');
+    const elBotRate = document.getElementById('mon-stat-bot-rate');
+
+    const open = tickets.filter(t => t.status === 'open').length;
+    const inProgress = tickets.filter(t => t.status === 'in-progress').length;
+    const closed = tickets.filter(t => t.status === 'closed').length;
+    const autoResolved = tickets.filter(t => t.autoResolved === true).length;
+
+    if (elTotal) elTotal.textContent = tickets.length;
+    if (elOpen) elOpen.textContent = open;
+    if (elProgress) elProgress.textContent = inProgress;
+    if (elResolved) elResolved.textContent = closed;
+    
+    if (elBotRate) {
+      const botRate = tickets.length > 0 ? Math.round((autoResolved / tickets.length) * 100) : 0;
+      elBotRate.textContent = `${botRate}%`;
+    }
+
+    const elTotalTrend = document.getElementById('mon-total-trend');
+    if (elTotalTrend) elTotalTrend.textContent = `${tickets.length} total tickets`;
+    
+    console.log('[Monitoring] Stats updated:', { total: tickets.length, open, inProgress, closed });
+  }
+
+  function updateCharts(tickets) {
+    // Trend chart - last 7 days
+    const last7Days = [];
+    const ticketCounts = [];
+    const resolvedCounts = [];
+    
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dayName = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'][date.getDay()];
+      last7Days.push(dayName);
+      
+      const dateStr = date.toDateString();
+      const dayTickets = tickets.filter(t => new Date(t.createdAt).toDateString() === dateStr);
+      const dayResolved = dayTickets.filter(t => t.status === 'closed');
+      
+      ticketCounts.push(dayTickets.length);
+      resolvedCounts.push(dayResolved.length);
+    }
+    
+    if (trendChart) {
+      trendChart.data.labels = last7Days;
+      trendChart.data.datasets[0].data = ticketCounts;
+      trendChart.data.datasets[1].data = resolvedCounts;
+      trendChart.update('active');
+    }
+
+    // Pie chart - status distribution
+    const open = tickets.filter(t => t.status === 'open').length;
+    const inProgress = tickets.filter(t => t.status === 'in-progress').length;
+    const closed = tickets.filter(t => t.status === 'closed').length;
+    
+    if (pieChart) {
+      pieChart.data.datasets[0].data = [open, inProgress, closed];
+      pieChart.update('active');
+    }
+
+    // Bot chart - weekly performance
+    const weeklyBot = [];
+    const weeklyAdmin = [];
+    
+    for (let week = 3; week >= 0; week--) {
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - (week * 7 + 7));
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() - (week * 7));
+      
+      const weekTickets = tickets.filter(t => {
+        const tDate = new Date(t.createdAt);
+        return tDate >= startDate && tDate <= endDate && t.status === 'closed';
+      });
+      
+      const botResolved = weekTickets.filter(t => t.autoResolved === true).length;
+      const adminResolved = weekTickets.length - botResolved;
+      
+      weeklyBot.push(botResolved);
+      weeklyAdmin.push(adminResolved);
+    }
+    
+    if (botChart) {
+      botChart.data.datasets[0].data = weeklyBot.reverse();
+      botChart.data.datasets[1].data = weeklyAdmin.reverse();
+      botChart.update('active');
+    }
+  }
+
+  function renderRecentTickets(tickets) {
+    const today = new Date().toDateString();
+    const todayTickets = tickets
+      .filter(t => new Date(t.createdAt).toDateString() === today)
+      .slice(0, 5);
+
+    const tbody = document.getElementById('mon-recent-tickets');
+    if (!tbody) return;
+    
+    if (todayTickets.length === 0) {
+      tbody.innerHTML = `
+        <tr>
+          <td colspan="7" style="text-align: center; padding: 60px 20px; color: var(--gray);">
+            <i class="fas fa-inbox" style="font-size: 64px; opacity: 0.2; margin-bottom: 16px; display: block;"></i>
+            <p style="font-size: 16px; font-weight: 500;">Belum ada ticket hari ini</p>
+            <p style="font-size: 14px; opacity: 0.7; margin-top: 8px;">Ticket baru akan muncul di sini</p>
+          </td>
+        </tr>
+      `;
+      return;
+    }
+
+    tbody.innerHTML = '';
+    todayTickets.forEach(ticket => {
+      const statusBadge = ticket.status === 'open' ? 'badge-warning' :
+                         ticket.status === 'in-progress' ? 'badge-primary' : 'badge-success';
+      const statusText = ticket.status === 'open' ? 'Open' :
+                        ticket.status === 'in-progress' ? 'In Progress' : 'Resolved';
+      
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><strong>TKT-${ticket.id}</strong></td>
+        <td>${ticket.user?.name || 'Unknown'}</td>
+        <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${ticket.title}">
+          ${ticket.title}
+        </td>
+        <td><span class="badge ${statusBadge}">${statusText}</span></td>
+        <td>
+          ${ticket.autoResolved ? '<i class="fas fa-robot" style="color: var(--primary);"></i> Bot' : 
+            ticket.resolvedBy === 'admin' ? '<i class="fas fa-user-shield" style="color: var(--success);"></i> Admin' : 
+            '-'}
+        </td>
+        <td>${new Date(ticket.createdAt).toLocaleTimeString('id-ID', {hour: '2-digit', minute: '2-digit'})}</td>
+        <td class="action-btns">
+          <button class="btn-sm btn-view" onclick="alert('Detail ticket #${ticket.id}')">
+            <i class="fas fa-eye"></i> Lihat
+          </button>
+        </td>
+      `;
+      tbody.appendChild(row);
+    });
+  }
+
+  function cleanup() {
+    console.log('[Monitoring] Cleaning up...');
+    if (trendChart) {
+      trendChart.destroy();
+      trendChart = null;
+    }
+    if (pieChart) {
+      pieChart.destroy();
+      pieChart = null;
+    }
+    if (botChart) {
+      botChart.destroy();
+      botChart = null;
+    }
+  }
+
+  // ============================================
+  // PUBLIC API - Hanya ini yang bisa diakses dari luar
+  // ============================================
+  window.MonitoringPage = {
+    init: function() {
+      console.log('[Monitoring] 🚀 Initializing page...');
+      initCharts();
+      loadMonitoringData();
+    },
+    
+    refresh: function() {
+      console.log('[Monitoring] 🔄 Refreshing data...');
+      loadMonitoringData();
+    },
+    
+    cleanup: cleanup
+  };
+
+})();
+</script>
