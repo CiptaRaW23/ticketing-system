@@ -110,8 +110,6 @@ function formatTickets(tickets) {
 const TICKET_INCLUDE_LIST = {
   messages: { orderBy: { createdAt: 'asc' } },
   user: { select: { id: true, name: true, username: true, address: true, phone: true } },
-  // [FIX #5] Hapus assignedTo — tidak dirender di frontend, hanya bikin payload besar
-  // assignedTo: { select: { id: true, name: true } },
 
   // [FIX #1] Tambah currentTechnician — data teknisi yang sedang aktif handle ticket
   currentTechnician: { select: { id: true, name: true, phone: true } },

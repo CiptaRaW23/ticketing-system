@@ -327,6 +327,12 @@
   </div>
 
   <script>
+    const token = localStorage.getItem('adminToken');
+
+    if (token) {
+      window.location.replace('/admin/index.html');
+    }
+
     const host = window.location.hostname;
 
     async function login() {

@@ -1,6 +1,8 @@
 let currentPage       = 'monitoring';
 let currentPageModule = null;
 
+console.log('[App] Script loaded!');
+
 // ── Page loader ───────────────────────────────────────────────
 async function loadPage(pageName) {
   console.log('[App] 📄 Loading:', pageName);
@@ -117,8 +119,14 @@ async function initApp() {
       if (++n > 60) { clearInterval(t); resolve(); }
     }, 100);
   });
+  console.log('[App] Checking auth...');
   const ok = await window.checkAuth();
-  if (!ok) { window.location.href = '/login.html'; return; }
+  console.log('[App] Auth result:', ok);
+  if (!ok) {
+  console.error('[App] Auth FAILED');
+  window.location.replace('/login.html');
+  return;
+  } 
   initSocket();
   setupSidebar();
   document.getElementById('logout-btn')?.addEventListener('click', window.logout);
@@ -130,4 +138,7 @@ window.loadPage           = loadPage;
 window.refreshCurrentPage = refreshCurrentPage;
 window.showNotification   = showNotification;
 
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+  console.log('[App] DOM ready!'); // ← tambah di sini
+  initApp();
+});

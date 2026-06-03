@@ -1,10 +1,7 @@
 (function() {
   'use strict';
-
-  const host = window.location.hostname;
-  const port = window.location.port || '3000';
-  // Gunakan port dari URL jika tersedia, fallback ke 3000
-  const API_BASE = `http://${host}:3000`;
+  
+  const API_BASE = `${window.location.protocol}//${window.location.host}`;
 
   // ============================================
   // TOKEN MANAGEMENT
@@ -76,10 +73,7 @@
       return true;
 
     } catch (err) {
-      console.error('[Auth] Check failed:', err);
-      // FIXED: Jangan clear auth jika network error (mungkin server sedang restart)
-      // Hanya clear jika benar-benar tidak ada token
-      clearAuth();
+      console.error('[Auth] Network error:', err);
       return false;
     }
   }

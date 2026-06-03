@@ -9,6 +9,14 @@
 </head>
 <body>
 
+  <script>
+    const token = localStorage.getItem('adminToken');
+
+    if (!token) {
+      window.location.replace('/login.html');
+    }
+  </script>
+
   <!-- Mobile Hamburger -->
   <div class="hamburger-mobile" id="hamburger-mobile" onclick="toggleSidebar()">
     <i class="fas fa-bars"></i>
@@ -18,7 +26,8 @@
   <div class="sidebar" id="sidebar">
     <div class="sidebar-header">
       <div class="logo">
-        <i class="fas fa-headset"></i> JagoDesk
+        <img src="/logo.png" style="height:36px;object-fit:contain;filter:brightness(0) invert(1);" />
+        <span>JagoDesk</span>
       </div>
     </div>
     <div class="menu-section">
