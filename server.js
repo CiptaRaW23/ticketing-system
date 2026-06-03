@@ -13,7 +13,11 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret-if-env-not-set';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET belum diset di environment (.env)');
+}
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 // ==================== DATABASE ====================
 
