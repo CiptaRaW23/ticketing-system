@@ -253,6 +253,43 @@ model ChatMessage {
   @@index([isRead])
 }
 
+// ==================== ADMIN ACTIVITY LOG ====================
+
+model AdminActivityLog {
+  id          Int      @id @default(autoincrement())
+  adminId     Int
+  adminName   String   @db.VarChar(100)
+  action      String   @db.VarChar(100)
+  entityType  String   @db.VarChar(50)
+  entityId    Int?
+  description String?  @db.Text
+  ipAddress   String?  @db.VarChar(50)
+  oldValue    String?  @db.Text
+  newValue    String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  @@map("admin_activity_logs")
+  @@index([adminId])
+  @@index([action])
+  @@index([createdAt])
+  @@index([entityType])
+}
+
+// ==================== SYSTEM SETTINGS ====================
+
+model SystemSetting {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)
+  value       String   @db.Text
+  description String?  @db.Text
+  dataType    String   @db.VarChar(20)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+  @@index([key])
+}
+
 // ==================== CUSTOMER REGISTRY ====================
 model CustomerRegistry {
   id           Int       @id @default(autoincrement())
