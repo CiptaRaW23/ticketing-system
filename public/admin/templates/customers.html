@@ -1,0 +1,453 @@
+<!-- templates/customers.html — includes CustomerRegistry tab + CSV Import modal -->
+
+<!-- ═══════════════════════════════════════════════════════════
+     TAB NAVIGATION: Pelanggan Aktif | Registri Pelanggan
+═══════════════════════════════════════════════════════════ -->
+<div class="dashboard-header">
+  <h2><i class="fas fa-users"></i> Manajemen Pelanggan</h2>
+  <div class="header-actions">
+    <!-- bulk actions (hanya aktif di tab pelanggan) -->
+    <button class="btn btn-success" id="cust-bulkApproveBtn" disabled>
+      <i class="fas fa-check-circle"></i> Aktifkan Selected (0)
+    </button>
+    <button class="btn btn-danger" id="cust-bulkDeactBtn" disabled>
+      <i class="fas fa-ban"></i> Nonaktifkan Selected (0)
+    </button>
+    <button class="btn btn-success" id="cust-openAddBtn">
+      <i class="fas fa-plus"></i> Tambah Pelanggan
+    </button>
+    <button class="btn btn-refresh" id="cust-refreshBtn">
+      <i class="fas fa-sync-alt"></i> Refresh
+    </button>
+    <div class="user-badge">
+      <div class="user-avatar-small">A</div>
+      <span><strong class="admin-name">Admin</strong></span>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-content">
+
+  <!-- ── Tab Bar ─────────────────────────────────────────── -->
+  <div class="tab-bar" style="display:flex;gap:0;border-bottom:2px solid var(--border);margin-bottom:24px;">
+    <button class="tab-btn active" id="tab-customers" onclick="switchTab('customers')">
+      <i class="fas fa-users"></i> Pelanggan Aktif
+    </button>
+    <button class="tab-btn" id="tab-registry" onclick="switchTab('registry')">
+      <i class="fas fa-list-alt"></i> Registri Pelanggan
+      <span class="badge badge-info" id="registry-count-badge" style="margin-left:6px;font-size:11px;">–</span>
+    </button>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       PANEL 1: Pelanggan Aktif (users terdaftar)
+  ════════════════════════════════════════════════════════ -->
+  <div id="panel-customers">
+    <div class="stats-grid">
+      <div class="stat-card blue">
+        <h3>Total Pelanggan</h3>
+        <div class="value" id="cust-stat-total">–</div>
+        <div class="trend info"><i class="fas fa-users"></i> Semua pelanggan</div>
+      </div>
+      <div class="stat-card green">
+        <h3>Aktif</h3>
+        <div class="value" id="cust-stat-active">–</div>
+        <div class="trend up"><i class="fas fa-check-circle"></i> Pelanggan aktif</div>
+      </div>
+      <div class="stat-card orange">
+        <h3>Pending / Baru</h3>
+        <div class="value" id="cust-stat-pending">0</div>
+        <div class="trend warning"><i class="fas fa-clock"></i> Belum diaktifkan</div>
+      </div>
+      <div class="stat-card red">
+        <h3>Nonaktif</h3>
+        <div class="value" id="cust-stat-inactive">–</div>
+        <div class="trend down"><i class="fas fa-user-slash"></i> Tidak aktif</div>
+      </div>
+    </div>
+
+    <div class="table-container">
+      <div class="table-header">
+        <h3><i class="fas fa-list"></i> Daftar Pelanggan</h3>
+        <div class="search-box">
+          <input type="text" id="cust-search" placeholder="🔍 Cari nama / ID / username..." />
+          <select id="cust-statusFilter">
+            <option value="">Semua Status</option>
+            <option value="active">Aktif</option>
+            <option value="inactive">Nonaktif</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:50px;"><input type="checkbox" id="cust-selectAll" /></th>
+              <th>ID</th><th>Username</th><th>Nama</th><th>No. HP</th>
+              <th>Alamat</th><th>Status</th><th>Tanggal Daftar</th><th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="cust-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════════════════════════════════════════════════
+       PANEL 2: Registri Pelanggan (whitelist no. HP)
+  ════════════════════════════════════════════════════════ -->
+  <div id="panel-registry" style="display:none;">
+
+    <!-- Stats registry -->
+    <div class="stats-grid stats-grid-3">
+      <div class="stat-card blue">
+        <h3>Total Registri</h3>
+        <div class="value" id="reg-stat-total">–</div>
+        <div class="trend info"><i class="fas fa-list"></i> Data terdaftar</div>
+      </div>
+      <div class="stat-card green">
+        <h3>Sudah Daftar</h3>
+        <div class="value" id="reg-stat-used">–</div>
+        <div class="trend up"><i class="fas fa-check-circle"></i> Sudah buat akun</div>
+      </div>
+      <div class="stat-card orange">
+        <h3>Belum Daftar</h3>
+        <div class="value" id="reg-stat-unused">–</div>
+        <div class="trend warning"><i class="fas fa-clock"></i> Belum buat akun</div>
+      </div>
+    </div>
+
+    <!-- Toolbar registry -->
+    <div class="table-container">
+      <div class="table-header">
+        <h3><i class="fas fa-list-alt"></i> Daftar Registri Pelanggan</h3>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <div class="search-box">
+            <input type="text" id="reg-search" placeholder="🔍 Cari nama / no. HP..." />
+            <select id="reg-statusFilter">
+              <option value="">Semua Status</option>
+              <option value="unused">Belum Daftar</option>
+              <option value="used">Sudah Daftar</option>
+            </select>
+          </div>
+          <!-- Tombol Import CSV -->
+          <button class="btn" style="background:var(--info);color:white;" id="reg-importBtn">
+            <i class="fas fa-file-csv"></i> Import CSV
+          </button>
+          <!-- Tombol Tambah Manual -->
+          <button class="btn btn-success" id="reg-openAddBtn">
+            <i class="fas fa-plus"></i> Tambah Manual
+          </button>
+          <button class="btn btn-refresh" id="reg-refreshBtn">
+            <i class="fas fa-sync-alt"></i> Refresh
+          </button>
+        </div>
+      </div>
+
+      <!-- Template download CSV -->
+      <div style="padding:10px 20px;background:#f0f9ff;border-bottom:1px solid var(--border);font-size:13px;">
+        <i class="fas fa-info-circle" style="color:var(--info);"></i>
+        Format CSV: <code>name,phone,address</code> (header wajib ada) ·
+        <a id="reg-downloadTemplate" href="#" style="color:var(--info);font-weight:600;">
+          <i class="fas fa-download"></i> Download Template CSV
+        </a>
+      </div>
+
+      <div style="overflow-x:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th>ID</th><th>Nama</th><th>No. HP</th><th>Alamat</th>
+              <th>Status</th><th>Terdaftar Sejak</th><th>Digunakan Pada</th><th>Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="reg-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div><!-- end dashboard-content -->
+
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL: Tambah Pelanggan (existing)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="cust-addModal">
+  <div class="modal-content" style="max-width:480px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-plus"></i> Tambah Pelanggan Baru</h2>
+      <span class="modal-close" id="cust-closeAddBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <input type="text"     id="cust-new-username" class="input-field" placeholder="Username (unik)" autocomplete="off" />
+      <input type="text"     id="cust-new-name"     class="input-field" placeholder="Nama Lengkap" />
+      <input type="text"     id="cust-new-phone"    class="input-field" placeholder="No. HP" />
+      <input type="password" id="cust-new-password" class="input-field" placeholder="Password (min 6 karakter)" autocomplete="new-password" />
+      <input type="text"     id="cust-new-address"  class="input-field" placeholder="Alamat (opsional)" />
+      <button class="btn btn-success" id="cust-addSubmitBtn" style="width:100%;padding:13px;margin-top:8px;">
+        <i class="fas fa-save"></i> Simpan Pelanggan
+      </button>
+      <p class="error" id="cust-add-error" style="margin-top:12px;min-height:20px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL: Edit Pelanggan (existing)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="cust-editModal">
+  <div class="modal-content" style="max-width:480px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-edit"></i> Edit Pelanggan #<span id="cust-edit-id"></span></h2>
+      <span class="modal-close" id="cust-closeEditBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:14px;">
+        <div>
+          <label class="form-label">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="cust-edit-name" class="input-field" />
+        </div>
+        <div>
+          <label class="form-label">No. HP</label>
+          <input type="text" id="cust-edit-phone" class="input-field" placeholder="Opsional" />
+        </div>
+        <div>
+          <label class="form-label">Alamat</label>
+          <input type="text" id="cust-edit-address" class="input-field" placeholder="Opsional" />
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="cust-edit-status" class="input-field">
+            <option value="active">Aktif</option>
+            <option value="inactive">Nonaktif</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Password Baru <span style="color:var(--gray);font-weight:400;">(kosongkan jika tidak diubah)</span></label>
+          <input type="password" id="cust-edit-password" class="input-field" autocomplete="new-password" />
+        </div>
+      </div>
+      <p id="cust-edit-error" style="color:var(--danger);font-size:13px;margin-top:14px;min-height:18px;"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button class="btn btn-refresh" id="cust-cancelEditBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn btn-success" id="cust-editSubmitBtn"><i class="fas fa-save"></i> Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL: Hapus Pelanggan (existing)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="cust-deleteModal">
+  <div class="modal-content" style="max-width:460px;">
+    <div class="modal-header" style="background:linear-gradient(135deg,#fef2f2,#fee2e2);border-bottom:1px solid #fca5a5;">
+      <h2 style="color:#991b1b;"><i class="fas fa-exclamation-triangle"></i> Konfirmasi Hapus Pelanggan</h2>
+      <span class="modal-close" id="cust-closeDeleteBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="background:#fef2f2;border:2px solid #fca5a5;border-radius:12px;padding:16px 18px;margin-bottom:18px;">
+        <div style="font-size:15px;font-weight:700;color:#991b1b;margin-bottom:8px;">⚠️ Peringatan: Cascade Delete</div>
+        <p id="cust-delete-warning" style="font-size:13px;color:#7f1d1d;line-height:1.6;margin:0;"></p>
+      </div>
+      <ul style="font-size:13px;color:var(--danger);padding-left:20px;margin-bottom:18px;line-height:1.8;">
+        <li>Semua tiket customer</li><li>Riwayat chat</li>
+        <li>Foto bukti teknisi</li><li>Riwayat assignment</li><li>Jadwal kunjungan</li>
+      </ul>
+      <p style="font-size:13px;font-weight:600;color:var(--dark);margin-bottom:14px;">Ketik nama pelanggan untuk konfirmasi:</p>
+      <input type="text" id="cust-delete-input" class="input-field" placeholder="Ketik nama pelanggan..." style="margin-bottom:6px;" />
+      <p id="cust-delete-hint" style="font-size:12px;color:var(--gray);margin-bottom:16px;"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-refresh" id="cust-cancelDeleteBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn" id="cust-deleteConfirmBtn" style="background:var(--danger);color:white;opacity:.5;" disabled>
+          <i class="fas fa-trash"></i> Hapus Permanen
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL: Import CSV (BARU)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="reg-importModal">
+  <div class="modal-content" style="max-width:560px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-file-csv"></i> Import Data Pelanggan via CSV</h2>
+      <span class="modal-close" id="reg-closeImportBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+
+      <!-- Panduan -->
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:14px 16px;margin-bottom:20px;font-size:13px;">
+        <div style="font-weight:700;color:#1d4ed8;margin-bottom:8px;"><i class="fas fa-info-circle"></i> Format CSV yang diterima:</div>
+        <code style="display:block;background:#dbeafe;padding:8px 12px;border-radius:6px;font-size:12px;color:#1e3a5f;line-height:1.8;">
+          name,phone,address<br>
+          Budi Santoso,081234567890,Jl. Mawar No.1 Madiun<br>
+          Siti Rahayu,082345678901,Jl. Melati No.2 Madiun<br>
+          Ahmad Fauzi,083456789012,
+        </code>
+        <ul style="margin-top:10px;padding-left:18px;line-height:1.8;color:#374151;">
+          <li>Header wajib: <strong>name</strong>, <strong>phone</strong>, <strong>address</strong> (boleh kosong)</li>
+          <li>No. HP harus unik — jika sudah ada, data akan di-update</li>
+          <li>Maksimal <strong>500 baris</strong> per import</li>
+          <li>Format file: <strong>.csv</strong></li>
+        </ul>
+      </div>
+
+      <!-- Drop zone -->
+      <div id="reg-dropzone"
+        style="border:2px dashed var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:16px;"
+        onclick="document.getElementById('reg-csvFile').click()"
+        ondragover="event.preventDefault();this.style.borderColor='var(--info)';this.style.background='#eff6ff';"
+        ondragleave="this.style.borderColor='var(--border)';this.style.background='transparent';"
+        ondrop="handleCsvDrop(event)">
+        <i class="fas fa-cloud-upload-alt" style="font-size:36px;color:var(--gray);display:block;margin-bottom:10px;"></i>
+        <p style="font-size:14px;font-weight:600;color:var(--dark);margin:0 0 4px;">Klik atau seret file CSV ke sini</p>
+        <p style="font-size:12px;color:var(--gray);margin:0;">Format: .csv, maksimal 2MB</p>
+      </div>
+      <input type="file" id="reg-csvFile" accept=".csv" style="display:none;" />
+
+      <!-- File selected preview -->
+      <div id="reg-filePreview" style="display:none;background:var(--light);border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:13px;">
+        <i class="fas fa-file-csv" style="color:var(--success);"></i>
+        <span id="reg-fileName" style="font-weight:600;margin-left:6px;"></span>
+        <span id="reg-fileSize" style="color:var(--gray);margin-left:8px;"></span>
+        <button onclick="clearCsvFile()" style="float:right;background:none;border:none;color:var(--danger);cursor:pointer;font-size:13px;">
+          <i class="fas fa-times"></i> Hapus
+        </button>
+      </div>
+
+      <!-- Preview tabel (setelah parse) -->
+      <div id="reg-previewTable" style="display:none;max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:16px;">
+        <table style="width:100%;font-size:12px;">
+          <thead style="background:var(--light);position:sticky;top:0;">
+            <tr>
+              <th style="padding:8px 12px;text-align:left;">#</th>
+              <th style="padding:8px 12px;text-align:left;">Nama</th>
+              <th style="padding:8px 12px;text-align:left;">No. HP</th>
+              <th style="padding:8px 12px;text-align:left;">Alamat</th>
+              <th style="padding:8px 12px;text-align:left;">Status</th>
+            </tr>
+          </thead>
+          <tbody id="reg-previewBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Error list -->
+      <div id="reg-csvErrors" style="display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#991b1b;max-height:100px;overflow-y:auto;"></div>
+
+      <!-- Progress bar saat upload -->
+      <div id="reg-importProgress" style="display:none;margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--gray);margin-bottom:4px;">
+          <span>Mengimport data...</span>
+          <span id="reg-progressText">0%</span>
+        </div>
+        <div style="height:6px;background:var(--border);border-radius:3px;overflow:hidden;">
+          <div id="reg-progressBar" style="height:100%;background:var(--info);border-radius:3px;width:0%;transition:width .3s;"></div>
+        </div>
+      </div>
+
+      <!-- Result summary -->
+      <div id="reg-importResult" style="display:none;"></div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-refresh" id="reg-cancelImportBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn" id="reg-submitImportBtn"
+          style="background:var(--info);color:white;" disabled>
+          <i class="fas fa-upload"></i> Import Sekarang
+        </button>
+      </div>
+      <p id="reg-import-error" style="color:var(--danger);font-size:13px;margin-top:12px;min-height:18px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     MODAL: Tambah Registri Manual (BARU)
+═══════════════════════════════════════════════════════════ -->
+<div class="modal-overlay" id="reg-addModal">
+  <div class="modal-content" style="max-width:460px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-plus"></i> Tambah Registri Pelanggan</h2>
+      <span class="modal-close" id="reg-closeAddBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:14px;">
+        <div>
+          <label class="form-label">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+          <input type="text" id="reg-add-name" class="input-field" placeholder="Nama pelanggan" />
+        </div>
+        <div>
+          <label class="form-label">No. HP <span style="color:var(--danger)">*</span>
+            <span style="color:var(--gray);font-weight:400;">(digunakan sebagai kode validasi register)</span>
+          </label>
+          <input type="text" id="reg-add-phone" class="input-field" placeholder="08xxxxxxxxxx" />
+        </div>
+        <div>
+          <label class="form-label">Alamat <span style="color:var(--gray);font-weight:400;">(opsional)</span></label>
+          <input type="text" id="reg-add-address" class="input-field" placeholder="Alamat pelanggan" />
+        </div>
+        <div>
+          <label class="form-label">Catatan <span style="color:var(--gray);font-weight:400;">(opsional)</span></label>
+          <input type="text" id="reg-add-note" class="input-field" placeholder="Catatan internal admin" />
+        </div>
+      </div>
+      <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;margin-top:14px;">
+        <i class="fas fa-info-circle"></i>
+        Pelanggan akan bisa mendaftar menggunakan nomor HP ini di aplikasi.
+        Akun akan langsung aktif setelah berhasil mendaftar.
+      </div>
+      <p id="reg-add-error" style="color:var(--danger);font-size:13px;margin-top:14px;min-height:18px;"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button class="btn btn-refresh" id="reg-cancelAddBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn btn-success" id="reg-addSubmitBtn"><i class="fas fa-save"></i> Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     STYLES
+═══════════════════════════════════════════════════════════ -->
+<style>
+/* ── Tab Bar ── */
+.tab-btn {
+  padding: 12px 24px;
+  border: none;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--gray);
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  transition: all .2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tab-btn.active {
+  color: var(--primary);
+  border-bottom-color: var(--primary);
+}
+.tab-btn:hover:not(.active) { color: var(--dark); background: var(--light); }
+
+/* ── Registry status badge ── */
+.reg-status-used   { background:#d1fae5;color:#065f46;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:600; }
+.reg-status-unused { background:#fef3c7;color:#92400e;display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:12px;font-weight:600; }
+
+/* ── Form label ── */
+.form-label { display:block;font-size:13px;font-weight:600;color:var(--dark);margin-bottom:6px; }
+
+/* ── Dropzone hover ── */
+#reg-dropzone:hover { border-color: var(--info); background: #eff6ff; }
+
+/* ── CSV preview table ── */
+#reg-previewTable td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+#reg-previewTable tr:last-child td { border-bottom: none; }
+.csv-row-valid   { color: var(--success); }
+.csv-row-invalid { color: var(--danger); }
+.csv-row-dup     { color: var(--warning); }
+</style>

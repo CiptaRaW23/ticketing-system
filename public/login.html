@@ -5,65 +5,325 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Login Admin Ticketing</title>
   <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display&display=swap" rel="stylesheet">
   <style>
-    body { 
-      font-family: 'Segoe UI', Arial, sans-serif; 
-      background: linear-gradient(135deg, #2c3e50, #3498db); 
-      color: white; 
-      display: flex; 
-      justify-content: center; 
-      align-items: center; 
-      height: 100vh; 
-      margin: 0; 
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --brand: #5b6af0;
+      --brand-dark: #4452d8;
+      --brand-light: #eef0fd;
+      --text-dark: #1a1d2e;
+      --text-mid: #6b7280;
+      --text-light: #9ca3af;
+      --border: #e5e7eb;
+      --bg: #f8f9fc;
+      --white: #ffffff;
+      --error: #ef4444;
+      --success: #10b981;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.08);
+      --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+      --shadow-lg: 0 20px 60px rgba(91,106,240,0.12);
     }
-    .login-container { 
-      background: white; 
-      color: #333; 
-      padding: 40px; 
-      border-radius: 15px; 
-      width: 380px; 
-      box-shadow: 0 15px 35px rgba(0,0,0,0.3); 
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      min-height: 100vh;
+      display: flex;
+      align-items: stretch;
+    }
+
+    /* ── Left panel ── */
+    .left-panel {
+      flex: 0 0 480px;
+      background: var(--white);
+      display: flex;
+      flex-direction: column;
+      padding: 48px 56px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .form-section { flex: 1; display: flex; flex-direction: column; justify-content: center; }
+
+    .welcome-text {
+      font-family: 'DM Serif Display', serif;
+      font-size: 36px;
+      color: var(--text-dark);
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+      margin-bottom: 8px;
+    }
+    .welcome-sub {
+      color: var(--text-mid);
+      font-size: 15px;
+      margin-bottom: 40px;
+    }
+
+    /* Form fields */
+    .field { margin-bottom: 16px; }
+    .field label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-dark);
+      margin-bottom: 6px;
+    }
+    .input-wrap { position: relative; }
+    .input-wrap i {
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+      font-size: 15px;
+      pointer-events: none;
+      transition: color .2s;
+    }
+    .input-wrap input {
+      width: 100%;
+      padding: 13px 14px 13px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text-dark);
+      background: var(--white);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .input-wrap input::placeholder { color: var(--text-light); }
+    .input-wrap input:focus {
+      border-color: var(--brand);
+      box-shadow: 0 0 0 3px rgba(91,106,240,0.12);
+    }
+    .input-wrap input:focus + i,
+    .input-wrap:focus-within i { color: var(--brand); }
+
+    /* Fix icon layering: icon after input in DOM but positioned absolute */
+    .input-wrap { display: flex; flex-direction: column; }
+    .input-wrap input { order: 1; }
+    .input-wrap .field-icon { order: 0; }
+
+    /* rewrite icon positioning cleanly */
+    .field-group { position: relative; }
+    .field-group i {
+      position: absolute;
+      left: 14px; top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-light);
+      font-size: 14px;
+      pointer-events: none;
+      transition: color .2s;
+      z-index: 2;
+    }
+    .field-group input {
+      width: 100%;
+      padding: 13px 14px 13px 40px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: 'DM Sans', sans-serif;
+      color: var(--text-dark);
+      background: var(--white);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      position: relative;
+    }
+    .field-group input::placeholder { color: var(--text-light); }
+    .field-group input:focus {
+      border-color: #10b981;
+      box-shadow: 0 0 0 3px rgba(16,185,129,0.12);
+    }
+    .field-group:focus-within i { color: #10b981; }
+
+    .btn-login {
+      width: 100%;
+      padding: 14px;
+      background: #10b981;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      font-family: 'DM Sans', sans-serif;
+      cursor: pointer;
+      transition: background .2s, transform .1s, box-shadow .2s;
+      box-shadow: 0 4px 16px rgba(16,185,129,0.3);
+      letter-spacing: 0.2px;
+    }
+    .btn-login:hover {
+      background: #059669;
+      box-shadow: 0 6px 20px rgba(16,185,129,0.4);
+    }
+    .btn-login:active { transform: scale(0.99); }
+    .btn-login.loading { opacity: 0.75; pointer-events: none; }
+
+    .error-msg {
+      display: none;
+      margin-top: 14px;
+      padding: 12px 14px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: var(--error);
+      font-size: 13px;
+      font-weight: 500;
       text-align: center;
     }
-    .logo { 
-      font-size: 60px; 
-      color: #3498db; 
-      margin-bottom: 20px; 
+    .error-msg.show { display: block; animation: shake .35s ease; }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-6px); }
+      60% { transform: translateX(6px); }
     }
-    h2 { margin: 0 0 30px 0; color: #2c3e50; }
-    input { 
-      width: 100%; 
-      padding: 15px; 
-      margin: 12px 0; 
-      border: 1px solid #ddd; 
-      border-radius: 8px; 
-      font-size: 16px; 
+
+    /* ── Right panel ── */
+    .right-panel {
+      flex: 1;
+      background: linear-gradient(135deg, #f0fdf9 0%, #d1fae5 50%, #a7f3d0 100%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 48px 56px;
+      position: relative;
+      overflow: hidden;
     }
-    button { 
-      width: 100%; 
-      padding: 15px; 
-      background: #3498db; 
-      color: white; 
-      border: none; 
-      border-radius: 8px; 
-      cursor: pointer; 
-      font-size: 18px; 
-      margin-top: 10px;
+
+    .illustration {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      z-index: 1;
     }
-    button:hover { background: #2980b9; }
-    .error { color: #e74c3c; margin-top: 15px; font-weight: bold; }
+
+    /* Decorative blobs */
+    .blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(60px);
+      opacity: 0.5;
+    }
+    .blob-1 {
+      width: 350px; height: 350px;
+      background: radial-gradient(circle, #a7f3d0, transparent);
+      top: -80px; left: -60px;
+    }
+    .blob-2 {
+      width: 280px; height: 280px;
+      background: radial-gradient(circle, #6ee7b7, transparent);
+      bottom: 40px; right: -40px;
+    }
+
+
+    .logo-center {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      position: relative;
+    }
+    .logo-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px solid rgba(16,185,129,0.22);
+      animation: pulse-ring 3s ease-in-out infinite;
+    }
+    .logo-ring-1 { width: 140px; height: 140px; animation-delay: 0s; }
+    .logo-ring-2 { width: 200px; height: 200px; animation-delay: 0.6s; }
+    .logo-ring-3 { width: 270px; height: 270px; animation-delay: 1.2s; }
+    @keyframes pulse-ring {
+      0%,100% { opacity: 0.4; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.03); }
+    }
+    .logo-big {
+      width: 100px; height: 100px;
+      background: #10b981;
+      border-radius: 28px;
+      display: flex; align-items: center; justify-content: center;
+      color: white; font-size: 42px;
+      box-shadow: 0 16px 48px rgba(16,185,129,0.35);
+      position: relative; z-index: 1;
+      animation: float-logo 4s ease-in-out infinite;
+    }
+    @keyframes float-logo {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .logo-tagline {
+      margin-top: 28px;
+      font-size: 15px;
+      font-weight: 600;
+      color: #10b981;
+      letter-spacing: 0.5px;
+      position: relative; z-index: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .right-panel { display: none; }
+      .left-panel { flex: 1; padding: 40px 32px; }
+    }
+    @media (max-width: 500px) {
+      .left-panel { padding: 32px 24px; }
+      .welcome-text { font-size: 28px; }
+    }
   </style>
 </head>
 <body>
-  <div class="login-container">
-    <div class="logo">
-      <i class="fas fa-headset"></i>
+
+  <!-- ── LEFT PANEL ── -->
+  <div class="left-panel">
+    <div class="form-section">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:28px;">
+        <img src="logo.png" style="height:44px;object-fit:contain;mix-blend-mode:multiply;" />
+      </div>
+      <h1 class="welcome-text">Selamat Datang<br>Kembali</h1>
+      <p class="welcome-sub">Masuk ke panel admin ticketing Anda</p>
+
+      <div class="field">
+        <label for="username">Username</label>
+        <div class="field-group">
+          <i class="fas fa-user"></i>
+          <input type="text" id="username" placeholder="Masukkan username" required autocomplete="username">
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="password">Password</label>
+        <div class="field-group">
+          <i class="fas fa-lock"></i>
+          <input type="password" id="password" placeholder="Masukkan password" required autocomplete="current-password">
+        </div>
+      </div>
+
+      <button class="btn-login" onclick="login()">Log In</button>
+      <p class="error-msg" id="error-msg"></p>
+
     </div>
-    <h2>Login Admin Ticketing</h2>
-    <input type="text" id="username" placeholder="Username" required>
-    <input type="password" id="password" placeholder="Password" required>
-    <button onclick="login()">Login</button>
-    <p class="error" id="error-msg"></p>
+  </div>
+
+  <!-- ── RIGHT PANEL ── -->
+  <div class="right-panel">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Centered logo illustration -->
+    <div class="illustration">
+      <div class="logo-center">
+        <div class="logo-ring logo-ring-3"></div>
+        <div class="logo-ring logo-ring-2"></div>
+        <div class="logo-ring logo-ring-1"></div>
+        <div class="logo-big" style="background:transparent;box-shadow:none;width:160px;height:160px;">
+          <img src="logo.png" style="width:160px;height:160px;object-fit:contain;mix-blend-mode:multiply;" />
+        </div>
+        <p class="logo-tagline" style="font-size:13px;color:#10b981;margin-top:8px;position:relative;z-index:1;">Admin Ticketing System</p>
+      </div>
+    </div>
   </div>
 
   <script>
@@ -73,11 +333,17 @@
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
       const errorMsg = document.getElementById('error-msg');
+      const btn = document.querySelector('.btn-login');
+
+      errorMsg.classList.remove('show');
 
       if (!username || !password) {
-        errorMsg.textContent = 'Username dan password wajib diisi';
+        showError('Username dan password wajib diisi');
         return;
       }
+
+      btn.classList.add('loading');
+      btn.textContent = 'Masuk...';
 
       try {
         const res = await fetch(`http://${host}:3000/api/login`, {
@@ -85,22 +351,30 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ username, password })
         });
-
         const data = await res.json();
-
         if (data.success && data.user.role.toLowerCase() === 'admin') {
           localStorage.setItem('adminToken', data.token);
           localStorage.setItem('adminName', data.user.name);
           window.location.href = '/admin/index.html';
         } else {
-          errorMsg.textContent = 'Hanya admin yang boleh login di sini';
+          showError('Hanya admin yang boleh login di sini');
         }
       } catch (err) {
-        errorMsg.textContent = 'Gagal login. Periksa koneksi atau credential';
+        showError('Gagal login. Periksa koneksi atau credential');
+      } finally {
+        btn.classList.remove('loading');
+        btn.textContent = 'Log In';
       }
     }
 
-    // Tekan Enter untuk login
+    function showError(msg) {
+      const el = document.getElementById('error-msg');
+      el.textContent = msg;
+      el.classList.remove('show');
+      void el.offsetWidth; // reflow to retrigger animation
+      el.classList.add('show');
+    }
+
     document.addEventListener('keypress', (e) => {
       if (e.key === 'Enter') login();
     });

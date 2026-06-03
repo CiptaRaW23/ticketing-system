@@ -1,0 +1,171 @@
+<!-- templates/technicians.html — markup only, zero JS -->
+<div class="dashboard-header">
+  <h2><i class="fas fa-hard-hat"></i> Manajemen Teknisi</h2>
+  <div class="header-actions">
+    <button class="btn btn-success" id="tech-openAddBtn"><i class="fas fa-plus"></i> Tambah Teknisi</button>
+    <button class="btn btn-refresh" id="tech-refreshBtn"><i class="fas fa-sync-alt"></i> Refresh</button>
+    <div class="user-badge">
+      <div class="user-avatar-small">A</div>
+      <span><strong class="admin-name">Admin</strong></span>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-content">
+  <div class="stats-grid stats-grid-5">
+    <div class="stat-card blue">
+      <h3>Total Teknisi</h3>
+      <div class="value" id="tech-stat-total">–</div>
+      <div class="trend info"><i class="fas fa-hard-hat"></i> Terdaftar</div>
+    </div>
+    <div class="stat-card green">
+      <h3>Aktif</h3>
+      <div class="value" id="tech-stat-active">–</div>
+      <div class="trend up"><i class="fas fa-circle" style="font-size:9px;"></i> Bisa menerima tugas</div>
+    </div>
+    <div class="stat-card orange">
+      <h3>Nonaktif</h3>
+      <div class="value" id="tech-stat-inactive">–</div>
+      <div class="trend warning"><i class="fas fa-circle" style="font-size:9px;"></i> Tidak bertugas</div>
+    </div>
+    <div class="stat-card purple">
+      <h3>Tugas Aktif</h3>
+      <div class="value" id="tech-stat-workload">–</div>
+      <div class="trend info"><i class="fas fa-tasks"></i> Assigned + In Progress</div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <div class="table-header">
+      <h3><i class="fas fa-list"></i> Daftar Teknisi</h3>
+      <div class="search-box">
+        <input type="text" id="tech-search"       placeholder="🔍 Cari nama, username, phone..." />
+        <select            id="tech-statusFilter">
+          <option value="">Semua Status</option>
+          <option value="active">Aktif</option>
+          <option value="inactive">Nonaktif</option>
+        </select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>Nama</th><th>Username</th><th>Phone</th><th>Email</th>
+            <th>Status</th><th>Tugas Aktif</th><th>Total Assignment</th><th>Bergabung</th><th style="width:160px;">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="tech-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Tambah -->
+<div class="modal-overlay" id="tech-addModal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-plus"></i> Tambah Teknisi Baru</h2>
+      <span class="modal-close" id="tech-closeAddBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:14px;">
+        <div>
+          <label class="form-label">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+          <input type="text"     id="tech-add-name"     class="input-field" placeholder="Contoh: Budi Santoso" />
+        </div>
+        <div>
+          <label class="form-label">Username <span style="color:var(--danger)">*</span></label>
+          <input type="text"     id="tech-add-username" class="input-field" placeholder="Contoh: budi.tech" />
+        </div>
+        <div>
+          <label class="form-label">Password <span style="color:var(--danger)">*</span></label>
+          <input type="password" id="tech-add-password" class="input-field" placeholder="Minimal 6 karakter" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label class="form-label">No. HP</label>
+            <input type="text"  id="tech-add-phone" class="input-field" placeholder="08xxx" />
+          </div>
+          <div>
+            <label class="form-label">Email</label>
+            <input type="email" id="tech-add-email" class="input-field" placeholder="email@domain.com" />
+          </div>
+        </div>
+      </div>
+      <p id="tech-add-error" style="color:var(--danger);font-size:13px;margin-top:14px;min-height:18px;"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button class="btn btn-refresh" id="tech-cancelAddBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn btn-success" id="tech-addSubmitBtn"><i class="fas fa-save"></i> Simpan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Edit -->
+<div class="modal-overlay" id="tech-editModal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-edit"></i> Edit Teknisi #<span id="tech-edit-id"></span></h2>
+      <span class="modal-close" id="tech-closeEditBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="display:grid;gap:14px;">
+        <div>
+          <label class="form-label">Nama Lengkap <span style="color:var(--danger)">*</span></label>
+          <input type="text"  id="tech-edit-name"   class="input-field" />
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label class="form-label">No. HP</label>
+            <input type="text"  id="tech-edit-phone" class="input-field" />
+          </div>
+          <div>
+            <label class="form-label">Email</label>
+            <input type="email" id="tech-edit-email" class="input-field" />
+          </div>
+        </div>
+        <div>
+          <label class="form-label">Status</label>
+          <select id="tech-edit-status" class="input-field">
+            <option value="active">Aktif</option>
+            <option value="inactive">Nonaktif</option>
+          </select>
+        </div>
+        <div style="background:#fef3c7;border:1px solid #fde68a;border-radius:8px;padding:10px 14px;font-size:12px;color:#92400e;">
+          <i class="fas fa-info-circle"></i>
+          Nonaktifkan teknisi jika sedang cuti/berhenti. Teknisi nonaktif tidak bisa menerima assignment baru.
+        </div>
+      </div>
+      <p id="tech-edit-error" style="color:var(--danger);font-size:13px;margin-top:14px;min-height:18px;"></p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:20px;">
+        <button class="btn btn-refresh" id="tech-cancelEditBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn btn-success" id="tech-editSubmitBtn"><i class="fas fa-save"></i> Simpan Perubahan</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Detail Beban Kerja -->
+<div class="modal-overlay" id="tech-detailModal">
+  <div class="modal-content" style="max-width:620px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-chart-bar"></i> Detail Teknisi – <span id="tech-detail-name"></span></h2>
+      <span class="modal-close" id="tech-closeDetailBtn">&times;</span>
+    </div>
+    <div class="modal-body" id="tech-detail-body">
+      <div style="text-align:center;padding:40px;color:var(--gray);">
+        <i class="fas fa-spinner fa-spin" style="font-size:32px;opacity:.4;display:block;margin-bottom:10px;"></i>
+        Memuat data...
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+.tech-status-badge { display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:600; }
+.tech-status-badge.active   { background:#d1fae5;color:#065f46; }
+.tech-status-badge.inactive { background:#fee2e2;color:#991b1b; }
+.workload-bar { height:8px;border-radius:4px;background:#e5e7eb;overflow:hidden;margin-top:6px; }
+.workload-bar-fill { height:100%;border-radius:4px;transition:width .4s ease; }
+</style>

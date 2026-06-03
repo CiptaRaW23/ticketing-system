@@ -1,0 +1,241 @@
+<!-- templates/tickets.html — markup only, zero JS -->
+<div class="dashboard-header">
+  <h2><i class="fas fa-ticket-alt"></i> Manajemen Ticket</h2>
+  <div class="header-actions">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <select id="tkt-bulkStatus" style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);font-size:13px;">
+      <option value="">Pilih status...</option>
+      <option value="open">Open</option>
+      <option value="assigned">Assigned</option>
+      <option value="in-progress">In Progress</option>
+      <option value="closed">Closed</option>
+    </select>
+    <select id="tkt-bulkPriority" style="padding:9px 14px;border-radius:8px;border:1px solid var(--border);font-size:13px;">
+      <option value="">Pilih prioritas...</option>
+      <option value="low">Low</option>
+      <option value="medium">Medium</option>
+      <option value="high">High</option>
+    </select>
+    <button class="btn btn-refresh" id="tkt-bulkUpdateBtn" disabled>
+      <i class="fas fa-sync-alt"></i> Update Selected (0)
+    </button>
+    <button class="btn btn-refresh" id="tkt-refreshBtn">
+      <i class="fas fa-sync-alt"></i> Refresh
+    </button>
+  </div>
+  <div class="user-badge">
+    <div class="user-avatar-small">A</div>
+    <span><strong class="admin-name">Admin</strong></span>
+  </div>
+</div>
+</div>
+
+<div class="dashboard-content">
+  <div class="stats-grid ticket-stats">
+    <div class="stat-card blue">
+      <h3>Total Ticket</h3>
+      <div class="value" id="tkt-stat-total">–</div>
+      <div class="trend info"><i class="fas fa-ticket-alt"></i> Semua ticket</div>
+    </div>
+    <div class="stat-card orange">
+      <h3>Open</h3>
+      <div class="value" id="tkt-stat-open">–</div>
+      <div class="trend warning"><i class="fas fa-exclamation-circle"></i> Perlu ditangani</div>
+    </div>
+    <div class="stat-card yellow">
+      <h3>Assigned</h3>
+      <div class="value" id="tkt-stat-assigned">–</div>
+      <div class="trend warning"><i class="fas fa-user-clock"></i> Menunggu teknisi acc</div>
+    </div>
+    <div class="stat-card purple">
+      <h3>In Progress</h3>
+      <div class="value" id="tkt-stat-progress">–</div>
+      <div class="trend info"><i class="fas fa-spinner"></i> Sedang dikerjakan</div>
+    </div>
+    <div class="stat-card green">
+      <h3>Closed Hari Ini</h3>
+      <div class="value" id="tkt-stat-closed">–</div>
+      <div class="trend up"><i class="fas fa-check-circle"></i> Selesai hari ini</div>
+    </div>
+  </div>
+
+  <div class="table-container">
+    <div class="table-header">
+      <h3><i class="fas fa-list"></i> Daftar Semua Ticket</h3>
+      <div class="search-box">
+        <input type="text" id="tkt-search"        placeholder="🔍 Cari ID, nama, subject..." />
+        <select            id="tkt-statusFilter">
+          <option value="">Semua Status</option>
+          <option value="open">Open</option>
+          <option value="assigned">Assigned</option>
+          <option value="in-progress">In Progress</option>
+          <option value="closed">Closed</option>
+        </select>
+        <select            id="tkt-priorityFilter">
+          <option value="">Semua Prioritas</option>
+          <option value="high">High</option>
+          <option value="medium">Medium</option>
+          <option value="low">Low</option>
+        </select>
+      </div>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:44px;"><input type="checkbox" id="tkt-selectAll" /></th>
+            <th>ID</th><th>Customer</th><th>Subject</th><th>Status</th>
+            <th>Prioritas</th><th>Teknisi</th><th>Jadwal</th><th>Dibuat</th><th style="width:260px;">Aksi</th>
+          </tr>
+        </thead>
+        <tbody id="tkt-tbody"></tbody>
+      </table>
+      <div id="tkt-pagination"
+            style="
+              display:flex;
+              justify-content:center;
+              gap:6px;
+              margin-top:20px;
+              flex-wrap:wrap;">
+      </div>
+
+      <div id="tkt-page-info"
+          style="
+            text-align:center;
+            margin-top:10px;
+            color:#6b7280;
+            font-size:13px;">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Detail -->
+<div class="modal-overlay" id="tkt-detailModal">
+  <div class="modal-content" style="max-width:700px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-file-alt"></i> Detail Ticket #<span id="tkt-detail-id"></span></h2>
+      <span class="modal-close" id="tkt-closeDetailBtn">&times;</span>
+    </div>
+    <div class="modal-body" id="tkt-detail-body"></div>
+  </div>
+</div>
+
+<!-- MODAL: Chat -->
+<div class="modal-overlay" id="tkt-chatModal">
+  <div class="modal-content" style="max-width:780px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-comments"></i> Chat – Ticket #<span id="tkt-chat-id"></span></h2>
+      <span class="modal-close" id="tkt-closeChatBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--light);padding:14px 16px;border-radius:10px;margin-bottom:16px;">
+        <strong id="tkt-chat-title" style="color:var(--dark);display:block;margin-bottom:8px;"></strong>
+        <div id="tkt-chat-badges" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+      </div>
+      <div id="tkt-chat-container" style="height:380px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;padding:16px;background:#fafafa;margin-bottom:14px;"></div>
+      <div style="display:flex;gap:10px;">
+        <input type="text" id="tkt-message-input" placeholder="Ketik balasan sebagai admin..."
+          style="flex:1;padding:12px 16px;border:1px solid var(--border);border-radius:25px;font-size:14px;outline:none;" />
+        <button id="tkt-sendBtn" style="padding:12px 24px;background:var(--success);color:white;border:none;border-radius:25px;font-weight:600;cursor:pointer;">
+          <i class="fas fa-paper-plane"></i> Kirim
+        </button>
+      </div>
+      <div style="margin-top:16px;text-align:right;">
+        <button class="btn btn-refresh" id="tkt-closeChatBtn2"><i class="fas fa-times"></i> Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Assign Teknisi -->
+<div class="modal-overlay" id="tkt-assignModal">
+  <div class="modal-content" style="max-width:560px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-user-cog"></i> Tugaskan Teknisi – Ticket #<span id="tkt-assign-id"></span></h2>
+      <span class="modal-close" id="tkt-closeAssignBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--light);padding:12px 16px;border-radius:10px;margin-bottom:20px;font-size:13px;">
+        <strong id="tkt-assign-title" style="color:var(--dark);display:block;margin-bottom:4px;"></strong>
+        <span  id="tkt-assign-customer" style="color:var(--gray);"></span>
+      </div>
+      <label class="form-label"><i class="fas fa-hard-hat"></i> Pilih Teknisi <span style="color:var(--danger)">*</span></label>
+      <select id="tkt-assign-tech-select" class="input-field" style="margin-bottom:16px;">
+        <option value="">-- Memuat daftar teknisi... --</option>
+      </select>
+      <div id="tkt-assign-tech-info" style="display:none;background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;">
+        <i class="fas fa-info-circle" style="color:var(--info);"></i>
+        <span id="tkt-assign-tech-info-text"></span>
+      </div>
+      <label class="form-label"><i class="fas fa-sticky-note"></i> Catatan untuk Teknisi <span style="color:var(--gray);font-weight:400;">(opsional)</span></label>
+      <textarea id="tkt-assign-note" class="input-field" rows="3"
+        placeholder="Contoh: Bawa kabel fiber 10m..." style="resize:vertical;margin-bottom:16px;"></textarea>
+      <label class="form-label"><i class="fas fa-calendar-alt"></i> Jadwal Kunjungan <span style="color:var(--gray);font-weight:400;">(opsional)</span></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+        <div>
+          <label style="font-size:12px;color:var(--gray);margin-bottom:4px;display:block;">Tanggal & Jam</label>
+          <input type="datetime-local" id="tkt-assign-date"     class="input-field" style="margin-bottom:0;" />
+        </div>
+        <div>
+          <label style="font-size:12px;color:var(--gray);margin-bottom:4px;display:block;">Estimasi Durasi (menit)</label>
+          <input type="number"         id="tkt-assign-duration" class="input-field" placeholder="60" min="15" max="480" style="margin-bottom:0;" />
+        </div>
+      </div>
+      <input type="text" id="tkt-assign-schedule-note" class="input-field" placeholder="Catatan jadwal (opsional)" style="margin-bottom:20px;" />
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-refresh"  id="tkt-cancelAssignBtn"><i class="fas fa-times"></i> Batal</button>
+        <button class="btn btn-success"  id="tkt-assignSubmitBtn"><i class="fas fa-paper-plane"></i> Tugaskan Teknisi</button>
+      </div>
+      <p id="tkt-assign-error" style="color:var(--danger);font-size:13px;margin-top:12px;min-height:18px;"></p>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Foto Bukti -->
+<div class="modal-overlay" id="tkt-photosModal">
+  <div class="modal-content" style="max-width:700px;">
+    <div class="modal-header">
+      <h2><i class="fas fa-images"></i> Foto Bukti – Ticket #<span id="tkt-photos-id"></span></h2>
+      <span class="modal-close" id="tkt-closePhotosBtn">&times;</span>
+    </div>
+    <div class="modal-body">
+      <div id="tkt-photos-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;"></div>
+      <div style="margin-top:16px;text-align:right;">
+        <button class="btn btn-refresh" id="tkt-closePhotosBtn2"><i class="fas fa-times"></i> Tutup</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Lightbox -->
+<div id="tkt-lightbox" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;align-items:center;justify-content:center;cursor:pointer;">
+  <img id="tkt-lightbox-img" src="" style="max-width:90vw;max-height:90vh;border-radius:8px;" />
+</div>
+
+<style>
+.tkt-status-dd { padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:white;min-width:118px; }
+.tkt-status-dd.st-open        { color:#92400e;background:#fef3c7;border-color:#fde68a; }
+.tkt-status-dd.st-assigned    { color:#9a3412;background:#ffedd5;border-color:#fed7aa; }
+.tkt-status-dd.st-in-progress { color:#5b21b6;background:#ede9fe;border-color:#ddd6fe; }
+.tkt-status-dd.st-closed      { color:#065f46;background:#d1fae5;border-color:#a7f3d0; }
+.tkt-priority-dd { padding:5px 8px;border:1.5px solid var(--border);border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:white;min-width:90px; }
+.tkt-priority-dd.pr-low    { color:#1e40af;background:#dbeafe;border-color:#93c5fd; }
+.tkt-priority-dd.pr-medium { color:#92400e;background:#fef3c7;border-color:#fde68a; }
+.tkt-priority-dd.pr-high   { color:#991b1b;background:#fee2e2;border-color:#fca5a5; }
+.tkt-msg { margin:10px 0;padding:11px 15px;border-radius:14px;max-width:74%;word-wrap:break-word; }
+.tkt-msg.customer { background:#3b82f6;color:white;margin-right:auto;border-bottom-left-radius:3px; }
+.tkt-msg.admin    { background:var(--success);color:white;margin-left:auto;border-bottom-right-radius:3px; }
+.tkt-msg.bot      { background:var(--warning);color:white;font-style:italic;margin-right:auto; }
+.tkt-msg strong   { display:block;font-size:11px;opacity:.8;margin-bottom:4px; }
+.tkt-msg small    { display:block;font-size:11px;opacity:.7;margin-top:5px; }
+.detail-row { display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border);gap:16px; }
+.detail-row:last-child { border-bottom:none; }
+.detail-label { color:var(--gray);font-weight:600;min-width:120px;font-size:13px; }
+.detail-value { color:var(--dark);text-align:right;font-size:13px; }
+.desc-box { background:var(--light);padding:14px;border-radius:10px;margin:12px 0;line-height:1.7;font-size:14px; }
+.photo-card { border-radius:10px;overflow:hidden;border:1px solid var(--border);cursor:pointer;transition:all .2s; }
+.photo-card:hover { transform:scale(1.03);box-shadow:var(--shadow-md); }
+.photo-card img { width:100%;height:160px;object-fit:cover;display:block; }
+.photo-card .photo-info { padding:10px 12px;font-size:12px; }
+</style>

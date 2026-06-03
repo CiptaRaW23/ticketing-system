@@ -1,0 +1,128 @@
+<!-- templates/monitoring.html — markup only, zero JS -->
+<div class="dashboard-header">
+  <h2><i class="fas fa-chart-bar"></i> Dashboard Monitoring</h2>
+  <div class="header-actions">
+    <button class="btn btn-refresh" id="mon-refreshBtn"><i class="fas fa-sync-alt"></i> Refresh Data</button>
+    <div class="user-badge">
+      <div class="user-avatar-small">A</div>
+      <strong class="admin-name">Admin</strong>
+    </div>
+  </div>
+</div>
+
+<div class="dashboard-content">
+
+  <!-- Stats 5 kartu -->
+  <div class="stats-grid stats-grid-5">
+    <div class="stat-card blue">
+      <h3>Total Ticket</h3>
+      <div class="value" id="mon-stat-total">–</div>
+      <div class="trend info"><i class="fas fa-ticket-alt"></i> Semua ticket</div>
+    </div>
+    <div class="stat-card orange">
+      <h3>Open</h3>
+      <div class="value" id="mon-stat-open">–</div>
+      <div class="trend warning"><i class="fas fa-exclamation-circle"></i> Belum ditangani</div>
+    </div>
+    <div class="stat-card yellow">
+      <h3>Assigned</h3>
+      <div class="value" id="mon-stat-assigned">–</div>
+      <div class="trend warning"><i class="fas fa-user-clock"></i> Menunggu teknisi acc</div>
+    </div>
+    <div class="stat-card purple">
+      <h3>In Progress</h3>
+      <div class="value" id="mon-stat-inprogress">–</div>
+      <div class="trend info"><i class="fas fa-tools"></i> Sedang dikerjakan</div>
+    </div>
+    <div class="stat-card green">
+      <h3>Closed</h3>
+      <div class="value" id="mon-stat-closed">–</div>
+      <div class="trend up"><i class="fas fa-check-circle"></i> Selesai</div>
+    </div>
+  </div>
+
+  <!-- Stat kecil tambahan -->
+   <div class="stats-grid stats-grid-3">
+    <div style="background:white;border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#10b981,#34d399);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-hard-hat" style="color:white;font-size:18px;"></i>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;">Teknisi Aktif</div>
+          <div style="font-size:28px;font-weight:800;color:var(--dark);" id="mon-stat-tech">–</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:white;border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#f59e0b,#fbbf24);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-user-slash" style="color:white;font-size:18px;"></i>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;">Customer Nonaktif</div>
+          <div style="font-size:28px;font-weight:800;color:var(--dark);" id="mon-stat-inactive">–</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:white;border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);border:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:42px;height:42px;background:linear-gradient(135deg,#3b82f6,#60a5fa);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-images" style="color:white;font-size:18px;"></i>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--gray);text-transform:uppercase;letter-spacing:.5px;">Foto Terkirim</div>
+          <div style="font-size:28px;font-weight:800;color:var(--dark);" id="mon-stat-photos">–</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-row">
+    <div class="chart-container">
+      <div class="chart-header">
+        <h3><i class="fas fa-chart-line"></i> Trend Ticket Mingguan</h3>
+        <div class="chart-filter">
+          <select id="mon-trendPeriod">
+            <option value="7">7 Hari Terakhir</option>
+            <option value="30">30 Hari Terakhir</option>
+          </select>
+        </div>
+      </div>
+      <div style="position:relative;height:280px;">
+        <canvas id="mon-trendChart"></canvas>
+      </div>
+    </div>
+    <div class="chart-container">
+      <div class="chart-header">
+        <h3><i class="fas fa-chart-pie"></i> Status Ticket</h3>
+      </div>
+      <div style="position:relative;height:280px;">
+        <canvas id="mon-pieChart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- Recent Tickets -->
+  <div class="table-container">
+    <div class="table-header">
+      <h3><i class="fas fa-ticket-alt"></i> Ticket Terbaru (10)</h3>
+      <button class="btn-view-all" onclick="loadPage('tickets')">
+        <i class="fas fa-list"></i> Lihat Semua
+      </button>
+    </div>
+    <div style="overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticket ID</th><th>Customer</th><th>Subject</th>
+            <th>Prioritas</th><th>Status</th><th>Teknisi</th><th>Dibuat</th>
+          </tr>
+        </thead>
+        <tbody id="mon-recent-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
