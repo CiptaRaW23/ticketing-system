@@ -59,6 +59,7 @@ enum MessageSender {
 model User {
   id          Int        @id @default(autoincrement())
   username    String     @unique @db.VarChar(50)
+  fcmToken    String?
   name        String     @db.VarChar(100)
   email       String?    @unique @db.VarChar(100)
   phone       String?    @db.VarChar(20)

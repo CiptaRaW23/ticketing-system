@@ -12,12 +12,41 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const admin = require('firebase-admin');
+const serviceAccount = require('./firebase-service-account.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount)
+});
 
 if (!process.env.JWT_SECRET) {
   throw new Error('JWT_SECRET belum diset di environment (.env)');
 }
 
 const JWT_SECRET = process.env.JWT_SECRET;
+async function sendFCM(token, title, body, data = {}) {
+  if (!token) return;
+
+  try {
+    await admin.messaging().send({
+      token,
+      data: {
+        title,         
+        body,          
+        ...Object.fromEntries(
+          Object.entries(data).map(([k, v]) => [k, String(v)])
+        )
+      },
+      android: {
+        priority: 'high'
+      }
+    });
+
+    console.log(`[FCM] Notifikasi terkirim -> ${title}`);
+  } catch (err) {
+    console.error('[FCM] Gagal kirim:', err.message);
+  }
+}
 
 // ==================== DATABASE ====================
 
@@ -109,7 +138,6 @@ function formatTickets(tickets) {
 }
 
 // ==================== TICKET INCLUDE HELPER ====================
-// [FIX #1] Centralized include — tambah currentTechnician, hapus assignedTo (tidak dipakai frontend)
 
 const TICKET_INCLUDE_LIST = {
   messages: { orderBy: { createdAt: 'asc' } },
@@ -335,6 +363,49 @@ app.post('/api/user/change-password', authMiddleware, async (req, res) => {
     res.json({ success: true, message: 'Password berhasil diubah' });
   } catch (error) {
     res.status(500).json({ error: 'Gagal ganti password' });
+  }
+});
+
+app.post('/api/user/fcm-token', authMiddleware, async (req, res) => {
+  try {
+    const { token } = req.body;
+
+    if (!token) {
+      return res.status(400).json({
+        error: 'Token wajib diisi'
+      });
+    }
+
+    await prisma.user.update({
+      where: {
+        id: req.user.userId
+      },
+      data: {
+        fcmToken: token
+      }
+    });
+
+    res.json({
+      success: true
+    });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      error: 'Gagal simpan token'
+    });
+  }
+});
+
+app.delete('/api/user/fcm-token', authMiddleware, async (req, res) => {
+  try {
+    await prisma.user.update({
+      where: { id: req.user.userId },
+      data: { fcmToken: null }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Gagal hapus FCM token' });
   }
 });
 
@@ -579,6 +650,24 @@ app.post('/api/tickets/:id/done', authMiddleware, technicianOnly, async (req, re
       ticket: formatTicket(updated)
     });
 
+    // FCM ke customer — teknisi tandai selesai
+    try {
+      const customerUser = await prisma.user.findUnique({
+        where: { id: ticket.userId },
+        select: { fcmToken: true }
+      });
+      if (customerUser?.fcmToken) {
+        await sendFCM(
+          customerUser.fcmToken,
+          '🔧 Perbaikan Selesai',
+          'Teknisi telah menyelesaikan perbaikan. Menunggu konfirmasi admin.',
+          { ticketId: String(ticketId) }
+        );
+      }
+    } catch (fcmErr) {
+      console.error('[FCM] Error done notif:', fcmErr.message);
+    }
+
     res.json({
       success: true,
       message: 'Pengerjaan ditandai selesai. Menunggu konfirmasi admin.',
@@ -592,7 +681,7 @@ app.post('/api/tickets/:id/done', authMiddleware, technicianOnly, async (req, re
 
 app.post('/api/tickets/:id/confirm', authMiddleware, adminOnly, async (req, res) => {
   const ticketId = Number(req.params.id);
-  const { action } = req.body; // 'approve' atau 'reject'
+  const { action } = req.body; 
 
   if (!['approve', 'reject'].includes(action))
     return res.status(400).json({ error: 'action harus approve atau reject' });
@@ -615,6 +704,20 @@ app.post('/api/tickets/:id/confirm', authMiddleware, adminOnly, async (req, res)
         },
         include: TICKET_INCLUDE_LIST
       });
+
+      const customerUser = await prisma.user.findUnique({
+        where: { id: ticket.userId },
+        select: { fcmToken: true }
+      });
+
+      if (customerUser?.fcmToken) {
+        await sendFCM(
+          customerUser.fcmToken,
+          '✅ Tiket Selesai',
+          'Tiket kamu sudah ditutup oleh admin',
+          { ticketId: String(ticketId) }
+        );
+      }
 
       const formatted = formatTicket(updated);
 
@@ -640,6 +743,26 @@ app.post('/api/tickets/:id/confirm', authMiddleware, adminOnly, async (req, res)
         },
         include: TICKET_INCLUDE_LIST
       });
+
+    // FCM ke teknisi saat ditolak
+    if (ticket.currentTechnicianId) {
+      try {
+        const techUser = await prisma.user.findUnique({
+          where: { id: ticket.currentTechnicianId },
+          select: { fcmToken: true }
+        });
+        if (techUser?.fcmToken) {
+          await sendFCM(
+            techUser.fcmToken,
+            '↩️ Perbaikan Ditolak',
+            'Admin meminta perbaikan lebih lanjut. Silakan lanjutkan pengerjaan.',
+            { ticketId: String(ticketId) }
+          );
+        }
+      } catch (fcmErr) {
+        console.error('[FCM] Error reject notif:', fcmErr.message);
+      }
+    }
 
       const formatted = formatTicket(updated);
 
@@ -856,6 +979,42 @@ app.post('/api/tickets/:id/assign', authMiddleware, adminOnly, async (req, res) 
       adminNote: adminNote || null
     });
 
+    // FCM ke teknisi — tugas baru
+    try {
+      const techUser = await prisma.user.findUnique({
+        where: { id: Number(technicianId) },
+        select: { fcmToken: true }
+      });
+      if (techUser?.fcmToken) {
+        await sendFCM(
+          techUser.fcmToken,
+          '📋 Tugas Baru',
+          `Anda mendapat tiket baru: ${updatedTicket.title}`,
+          { ticketId: String(ticketId) }
+        );
+      }
+    } catch (fcmErr) {
+      console.error('[FCM] Error assign tech notif:', fcmErr.message);
+    }
+
+    // FCM ke customer — teknisi ditugaskan
+    try {
+      const customerUser = await prisma.user.findUnique({
+        where: { id: ticket.userId },
+        select: { fcmToken: true }
+      });
+      if (customerUser?.fcmToken) {
+        await sendFCM(
+          customerUser.fcmToken,
+          '🔧 Teknisi Ditugaskan',
+          `Tiket kamu sedang ditangani oleh teknisi.`,
+          { ticketId: String(ticketId) }
+        );
+      }
+    } catch (fcmErr) {
+      console.error('[FCM] Error assign customer notif:', fcmErr.message);
+    }
+
     res.json({
       success: true,
       message: `Ticket berhasil di-assign ke ${technician.name}`,
@@ -863,7 +1022,7 @@ app.post('/api/tickets/:id/assign', authMiddleware, adminOnly, async (req, res) 
       ticket: formatted
     });
   } catch (error) {
-    console.error('Error assign ticket:', error);
+      console.error('Error assign ticket:', error);
     res.status(500).json({ error: 'Gagal assign ticket', details: error.message });
   }
 });
@@ -925,6 +1084,8 @@ app.post('/api/tickets/:id/assignment/respond', authMiddleware, technicianOnly, 
         rejectReason: rejectReason || null,
         ticket: formatted
       });
+
+      
 
       res.json({
         success: true,
@@ -1185,6 +1346,28 @@ io.on('connection', (socket) => {
     } catch (error) {
       console.error('❌ Error simpan pesan chat:', error);
       socket.emit('messageError', { error: 'Gagal mengirim pesan' });
+      return;
+    }
+
+    try {
+      const ticketData = await prisma.ticket.findUnique({
+        where: { id: Number(ticketId) },
+        select: {
+          userId: true,
+          user: { select: { fcmToken: true } }
+        }
+      });
+
+      if (sender !== 'customer' && ticketData?.user?.fcmToken) {
+        await sendFCM(
+          ticketData.user.fcmToken,
+          '💬 Pesan Baru',
+          message.substring(0, 100),
+          { ticketId: String(ticketId) }
+        );
+      }
+    } catch (fcmErr) {
+    console.error('[FCM] Error chat notif:', fcmErr.message);
     }
   });
 
