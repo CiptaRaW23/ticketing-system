@@ -35,13 +35,6 @@ enum AssignmentStatus {
   rejected  // Teknisi reject → ticket kembali open
 }
 
-enum TicketCategory {
-  gangguan
-  pertanyaan
-  complaint
-  other
-}
-
 enum TicketPriority {
   low
   medium
@@ -104,7 +97,6 @@ model Ticket {
   title        String          @db.VarChar(200)
   description  String          @db.Text
   status       TicketStatus    @default(open)
-  category     TicketCategory?
   priority     TicketPriority?
 
   // Lokasi customer
@@ -261,7 +253,6 @@ model CustomerRegistry {
   phone        String    @unique @db.VarChar(20)
   address      String?   @db.Text
   isUsed       Boolean   @default(false)
-  usedByUserId Int?
   note         String?   @db.Text
   importedAt   DateTime  @default(now())
   usedAt       DateTime?
