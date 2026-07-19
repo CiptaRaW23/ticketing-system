@@ -1,5 +1,3 @@
-// modules/helpers.js — shared utilities, dipakai semua pages
-
 export function escHtml(str) {
   const d = document.createElement('div');
   d.textContent = str || '';

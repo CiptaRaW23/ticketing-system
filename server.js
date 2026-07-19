@@ -410,6 +410,30 @@ app.delete('/api/user/fcm-token', authMiddleware, async (req, res) => {
 });
 
 // ==================== TICKET ROUTES ====================
+async function generateTicketNumber() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm   = String(now.getMonth() + 1).padStart(2, '0');
+  const dd   = String(now.getDate()).padStart(2, '0');
+  const datePart = `${yyyy}${mm}${dd}`;
+
+  const startOfDay = new Date(yyyy, now.getMonth(), now.getDate(), 0, 0, 0, 0);
+  const endOfDay   = new Date(yyyy, now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+  const countToday = await prisma.ticket.count({
+    where: { createdAt: { gte: startOfDay, lte: endOfDay } }
+  });
+
+  const urutan = String(countToday + 1).padStart(3, '0');
+  let ticketNumber = `${datePart}-${urutan}`;
+
+  const existing = await prisma.ticket.findUnique({ where: { ticketNumber } });
+  if (existing) {
+    ticketNumber = `${datePart}-${urutan}-${Date.now().toString().slice(-4)}`;
+  }
+  
+  return ticketNumber;
+}
 
 app.post('/api/tickets', authMiddleware, async (req, res) => {
   try {
@@ -432,8 +456,10 @@ app.post('/api/tickets', authMiddleware, async (req, res) => {
       mapsLink = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address.trim())}`;
     }
 
+    const ticketNumber = await generateTicketNumber();
+
     const ticket = await prisma.ticket.create({
-      data: { title, description, userId, address, mapsLink, status: 'open' },
+      data: { title, description, userId, address, mapsLink, status: 'open', ticketNumber},
       include: {
         user: { select: { id: true, name: true, username: true, address: true } }
       }
@@ -847,10 +873,9 @@ app.get('/api/technicians/all', authMiddleware, adminOnly, async (req, res) => {
   }
 });
 
-// PATCH /api/technicians/:id — Update status/data teknisi
 app.patch('/api/technicians/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
-    const { status, name, phone, email } = req.body;
+    const { status, name, phone, email, password } = req.body;
     const updateData = {};
 
     if (status) {
@@ -861,6 +886,11 @@ app.patch('/api/technicians/:id', authMiddleware, adminOnly, async (req, res) =>
     if (name)             updateData.name  = name;
     if (phone !== undefined) updateData.phone = phone;
     if (email !== undefined) updateData.email = email;
+    if (password) {
+      if (password.length < 6)
+        return res.status(400).json({ error: 'Password minimal 6 karakter' });
+      updateData.password = await bcrypt.hash(password, 10);
+    }
 
     const technician = await prisma.user.update({
       where: { id: Number(req.params.id) },
@@ -877,7 +907,6 @@ app.patch('/api/technicians/:id', authMiddleware, adminOnly, async (req, res) =>
   }
 });
 
-// DELETE /api/technicians/:id — Hapus teknisi (dengan cek ticket aktif)
 app.delete('/api/technicians/:id', authMiddleware, adminOnly, async (req, res) => {
   try {
     const techId = Number(req.params.id);

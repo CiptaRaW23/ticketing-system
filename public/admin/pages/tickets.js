@@ -81,7 +81,7 @@ function render(list) {
     return `
       <tr data-id="${t.id}">
         <td><input type="checkbox" class="tkt-chk" data-id="${t.id}"></td>
-        <td><strong>#${t.id}</strong></td>
+        <td><strong>${escHtml(t.ticketNumber || '#'+t.id)}</strong></td>
         <td>${escHtml(t.user?.name||'Unknown')}</td>
         <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
         <td>
@@ -230,6 +230,7 @@ async function openDetail(id) {
   openModal('tkt-detailModal');
   try {
     const raw = await fetchTicket(id); const t = raw.ticket || raw;
+    document.getElementById('tkt-detail-id').textContent = t.ticketNumber || id;
     const st = findSt(t.status); const pr = findPr(t.priority);
     const techName = t.currentTechnician?.name || t.assignments?.[0]?.technician?.name || null;
     const aStatus  = t.assignments?.[0]?.status || null;

@@ -198,7 +198,7 @@ function renderRecentTickets(tickets) {
       : `<span style="color:var(--gray);font-style:italic;font-size:12px;">—</span>`;
     return `
       <tr>
-        <td><strong>#${t.id}</strong></td>
+        <td><strong>${t.ticketNumber || '#' + t.id}</strong></td>
         <td>${escHtml(t.user?.name||'Unknown')}</td>
         <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(t.title)}">${escHtml(t.title)}</td>
         <td><span class="badge ${prioCls}">${capitalize(t.priority||'low')}</span></td>

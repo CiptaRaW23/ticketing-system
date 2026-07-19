@@ -138,6 +138,7 @@ function openEdit(id) {
   document.getElementById('tech-edit-name').value   = tech.name;
   document.getElementById('tech-edit-phone').value  = tech.phone  || '';
   document.getElementById('tech-edit-email').value  = tech.email  || '';
+  document.getElementById('tech-edit-password').value = '';
   document.getElementById('tech-edit-status').value = tech.status;
   setEl('tech-edit-error', '');
   openModal('tech-editModal');
@@ -147,13 +148,20 @@ function closeEdit() { closeModal('tech-editModal'); editingId = null; }
 async function submitEdit() {
   const name   = v('tech-edit-name'), phone = v('tech-edit-phone'), email = v('tech-edit-email');
   const status = document.getElementById('tech-edit-status')?.value;
+  const password = document.getElementById('tech-edit-password')?.value || '';
   const err    = document.getElementById('tech-edit-error');
   const btn    = document.getElementById('tech-editSubmitBtn');
   err.textContent = '';
   if (!name) { err.textContent = '⚠️ Nama wajib diisi'; return; }
+  if (password && password.length < 6) {                                     
+    err.textContent = '⚠️ Password minimal 6 karakter';                        
+    return;                                                                     
+  }
   setLoading(btn, true, '');
   try {
-    await patchTechnician(editingId, { name, phone: phone||null, email: email||null, status });
+    const body = { name, phone: phone||null, email: email||null, status };
+    if (password) body.password = password;                                       
+    await patchTechnician(editingId, body);
     closeEdit();
     showNotif('✅ Data teknisi berhasil diperbarui');
     await load();
